@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "bin": "maximus",
+  "profiles": {
+    "default": { "installArgs": [] },
+    "noOptional": { "installArgs": ["--omit=optional"] }
+  },
+  "probes": [
+    {
+      "id": "help",
+      "argv": ["--help"],
+      "timeoutMs": 10000,
+      "compare": ["exit", "stdout", "stderr", "runtime"]
+    },
+    {
+      "id": "version",
+      "argv": ["--version"],
+      "timeoutMs": 10000,
+      "compare": ["exit", "stdout", "stderr"]
+    }
+  ],
+  "allowedDeltas": [
+    {
+      "probe": "help",
+      "between": ["default", "noOptional"],
+      "field": "stdout",
+      "fromSha256": "5627d0a3f3decb9dfeaf496fa8f01d027f3eaedfd1431498574a8f738c952911",
+      "toSha256": "4c3e8f0cda0740e1e172bc901fde6cf6e34a7fc93cf318c6d74f5b8202b76485",
+      "reason": "Maximus documents a reduced JavaScript fallback help surface"
+    },
+    {
+      "probe": "help",
+      "between": ["default", "noOptional"],
+      "field": "runtime",
+      "fromSha256": "0384760611d897dc6cb9b4ed783b188919dd2d4c6a8d29a28381fa6c4e61d323",
+      "toSha256": "12c0048f1c782a107aadf07a7f773be5b9dc7e61f5842a3ccdec48ede2c50e5f",
+      "reason": "The no-optional profile intentionally omits the native package"
+    },
+    {
+      "probe": "version",
+      "between": ["default", "noOptional"],
+      "field": "exit",
+      "from": 2,
+      "to": 1,
+      "reason": "Pinned Maximus 0.1.4 fallback returns a different invalid-option exit"
+    }
+  ]
+}

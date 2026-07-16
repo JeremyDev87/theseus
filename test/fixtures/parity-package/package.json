@@ -1,0 +1,9 @@
+{
+  "name": "theseus-parity-fixture",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "parity-fixture": "./bin/parity-fixture.js"
+  },
+  "files": ["bin"]
+}
