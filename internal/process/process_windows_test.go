@@ -27,18 +27,18 @@ func TestCommandScriptArgumentsWithSpaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(root, "fixture command.cmd")
-	// The script writes its first argument to a file instead of echoing to
-	// stdout. This avoids cmd.exe re-interpreting metacharacters during
-	// batch-variable expansion. We then read the file back to verify the
-	// child received the exact argument value Theseus passed.
+	// Capture the expanded argument in a quoted SET assignment so cmd.exe does
+	// not interpret metacharacters such as '&'. The SET listing writes the
+	// stored value without expanding it again, preserving exact argv evidence.
 	outputFile := filepath.Join(t.TempDir(), "argv.txt")
 	scriptContent := "@echo off\r\n" +
-		"> \"" + outputFile + "\" echo %~1\r\n" +
+		"set \"THESEUS_ARG=%~1\"\r\n" +
+		"> \"" + outputFile + "\" set THESEUS_ARG\r\n" +
 		"exit /b 0\r\n"
 	if err := os.WriteFile(script, []byte(scriptContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := Run(script, []string{"hello world"}, root, 5*time.Second)
+	result := Run(script, []string{"hello & world"}, root, 5*time.Second)
 	if result.SpawnError != "" || result.ExitCode == nil || *result.ExitCode != 0 {
 		t.Fatalf("unexpected .cmd result: %#v", result)
 	}
@@ -47,8 +47,9 @@ func TestCommandScriptArgumentsWithSpaces(t *testing.T) {
 		t.Fatalf("output file not created: %v", err)
 	}
 	got := strings.TrimSpace(string(data))
-	if got != "hello world" {
-		t.Fatalf("argument value mismatch: got %q want %q", got, "hello world")
+	want := "THESEUS_ARG=hello & world"
+	if got != want {
+		t.Fatalf("argument value mismatch: got %q want %q", got, want)
 	}
 }
 
