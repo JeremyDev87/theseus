@@ -2,6 +2,7 @@ package runner
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,22 +31,36 @@ type packageManifest struct {
 	OptionalDependencies map[string]json.RawMessage `json:"optionalDependencies"`
 }
 
-func Verify(target string, config model.Contract) (model.VerificationResult, error) {
+var (
+	currentWorkingDirectory = os.Getwd
+	removeTemporaryRoot     = os.RemoveAll
+)
+
+func Verify(target string, config model.Contract) (result model.VerificationResult, err error) {
 	tempRoot, err := os.MkdirTemp("", "theseus-")
 	if err != nil {
 		return model.VerificationResult{}, err
 	}
-	defer os.RemoveAll(tempRoot)
-	nodeResult := processrun.Run("node", []string{"--version"}, mustCWD(), 10*time.Second)
+	defer func() {
+		if cleanupErr := removeTemporaryRoot(tempRoot); cleanupErr != nil {
+			result = model.VerificationResult{}
+			err = errors.Join(err, fmt.Errorf("unable to remove temporary root: %w", cleanupErr))
+		}
+	}()
+	cwd, err := currentWorkingDirectory()
+	if err != nil {
+		return model.VerificationResult{}, fmt.Errorf("unable to resolve working directory: %w", err)
+	}
+	nodeResult := processrun.Run("node", []string{"--version"}, cwd, 10*time.Second)
 	if nodeResult.ExitCode == nil || *nodeResult.ExitCode != 0 || nodeResult.SpawnError != "" {
 		return model.VerificationResult{}, fmt.Errorf("unable to resolve node version: %s", commandDetail(nodeResult))
 	}
-	npmResult := processrun.Run("npm", []string{"--version"}, mustCWD(), 10*time.Second)
+	npmResult := processrun.Run("npm", []string{"--version"}, cwd, 10*time.Second)
 	if npmResult.ExitCode == nil || *npmResult.ExitCode != 0 || npmResult.SpawnError != "" {
 		return model.VerificationResult{}, fmt.Errorf("unable to resolve npm version: %s", commandDetail(npmResult))
 	}
 	environment := model.EnvironmentReceipt{Platform: nodePlatform(), Arch: nodeArch(), Node: strings.TrimSpace(nodeResult.Stdout), NPM: strings.TrimSpace(npmResult.Stdout)}
-	artifact, err := prepareArtifact(target, tempRoot)
+	artifact, err := prepareArtifact(target, tempRoot, cwd)
 	if err != nil {
 		return model.VerificationResult{}, err
 	}
@@ -74,7 +89,7 @@ func Verify(target string, config model.Contract) (model.VerificationResult, err
 	}, nil
 }
 
-func prepareArtifact(target, tempRoot string) (preparedArtifact, error) {
+func prepareArtifact(target, tempRoot, cwd string) (preparedArtifact, error) {
 	artifactDir := filepath.Join(tempRoot, "artifact")
 	if err := os.MkdirAll(artifactDir, 0o755); err != nil {
 		return preparedArtifact{}, err
@@ -87,7 +102,7 @@ func prepareArtifact(target, tempRoot string) (preparedArtifact, error) {
 			return preparedArtifact{}, err
 		}
 	}
-	result := processrun.Run("npm", []string{"pack", resolvedTarget, "--json", "--pack-destination", artifactDir}, mustCWD(), 120*time.Second)
+	result := processrun.Run("npm", []string{"pack", resolvedTarget, "--json", "--pack-destination", artifactDir}, cwd, 120*time.Second)
 	if result.ExitCode == nil || *result.ExitCode != 0 || result.TimedOut || result.SpawnError != "" {
 		return preparedArtifact{}, fmt.Errorf("npm pack failed: %s", sanitizeDiagnostic(commandDetail(result), tempRoot))
 	}
@@ -313,7 +328,7 @@ func resolveBin(manifest packageManifest, packageName, requested string) (string
 	for name := range entries {
 		return name, nil
 	}
-	panic("unreachable")
+	return "", fmt.Errorf("internal: bin resolution found no entries for %s", packageName)
 }
 
 func installedOptionalDependencies(projectDir string, manifest packageManifest) []model.OptionalDependencyReceipt {
@@ -362,13 +377,6 @@ func nodeArch() string {
 	default:
 		return runtime.GOARCH
 	}
-}
-func mustCWD() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	return cwd
 }
 func displayExit(value *int) string {
 	if value == nil {

@@ -19,8 +19,8 @@ func TestCommandScriptArgumentsWithSpaces(t *testing.T) {
 	if err := os.WriteFile(script, []byte("@echo off\r\necho %~1\r\nexit /b 0\r\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := Run(script, []string{"hello world"}, root, 5*time.Second)
-	if result.SpawnError != "" || result.ExitCode == nil || *result.ExitCode != 0 || strings.TrimSpace(result.Stdout) != "hello world" {
+	result := Run(script, []string{"hello & world"}, root, 5*time.Second)
+	if result.SpawnError != "" || result.ExitCode == nil || *result.ExitCode != 0 || strings.TrimSpace(result.Stdout) != "hello & world" {
 		t.Fatalf("unexpected .cmd result: %#v", result)
 	}
 }

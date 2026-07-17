@@ -2,14 +2,30 @@ package runner
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/JeremyDev87/theseus/internal/contract"
 	"github.com/JeremyDev87/theseus/internal/model"
 	"github.com/JeremyDev87/theseus/internal/report"
 )
+
+func TestVerifyReturnsWorkingDirectoryAndCleanupErrors(t *testing.T) {
+	originalGetwd, originalRemoveAll := currentWorkingDirectory, removeTemporaryRoot
+	currentWorkingDirectory = func() (string, error) { return "", errors.New("cwd unavailable") }
+	removeTemporaryRoot = func(string) error { return errors.New("cleanup unavailable") }
+	t.Cleanup(func() {
+		currentWorkingDirectory, removeTemporaryRoot = originalGetwd, originalRemoveAll
+	})
+
+	_, err := Verify("unused", model.Contract{})
+	if err == nil || !strings.Contains(err.Error(), "cwd unavailable") || !strings.Contains(err.Error(), "cleanup unavailable") {
+		t.Fatalf("Verify error=%v; want working-directory and cleanup failures", err)
+	}
+}
 
 func fixtureRoot(t *testing.T) string {
 	root, err := filepath.Abs(filepath.Join("..", "..", "testdata", "fixtures", "parity-package"))
