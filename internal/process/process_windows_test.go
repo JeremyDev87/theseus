@@ -8,7 +8,18 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
+
+func TestWindowsCommandStartsSuspended(t *testing.T) {
+	for _, command := range []string{`C:	ools\fixture.exe`, `C:	ools\fixture.cmd`} {
+		cmd := windowsCommand(command, []string{"argument"})
+		if cmd.SysProcAttr == nil || cmd.SysProcAttr.CreationFlags&windows.CREATE_SUSPENDED == 0 {
+			t.Fatalf("%s must start suspended before Job Object assignment", command)
+		}
+	}
+}
 
 func TestCommandScriptArgumentsWithSpaces(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "directory with spaces")
