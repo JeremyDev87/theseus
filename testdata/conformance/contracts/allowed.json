@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "profiles": {
+    "default": { "installArgs": [] },
+    "noOptional": { "installArgs": ["--omit=optional"] }
+  },
+  "probes": [
+    {
+      "id": "help",
+      "argv": ["--help"],
+      "compare": ["stdout", "stderr"]
+    }
+  ],
+  "allowedDeltas": [
+    {
+      "probe": "help",
+      "between": ["default", "noOptional"],
+      "field": "stdout",
+      "fromSha256": "0e716a5fef4e6dc1bcfff22ad52f73ca4eee3f4ea8292f4a1918daa32592889f",
+      "toSha256": "f8057a78b3af83f1e8fb828323452f99da1f06971d4be411961c9f5b9a264504",
+      "reason": "documented reduced help"
+    }
+  ]
+}

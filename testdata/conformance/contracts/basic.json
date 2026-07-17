@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "profiles": {
+    "default": { "installArgs": [] },
+    "noOptional": { "installArgs": ["--omit=optional"] }
+  },
+  "probes": [
+    {
+      "id": "help",
+      "argv": ["--help"],
+      "compare": ["exit", "stdout", "stderr", "runtime"],
+      "expect": { "exit": 0 }
+    }
+  ]
+}

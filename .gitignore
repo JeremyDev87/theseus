@@ -1,6 +1,9 @@
 node_modules/
 dist/
+build/
 *.tgz
 .DS_Store
 coverage/
 theseus-report.json
+/theseus
+/theseus.exe

@@ -1,0 +1,24 @@
+{
+  "findings": [
+    {
+      "code": "THS-PARITY-002",
+      "probe": "help",
+      "field": "stderr",
+      "profiles": ["default", "noOptional"],
+      "message": "help: stderr differs between default and noOptional",
+      "actual": { "default": "", "noOptional": "unexpected\n" },
+      "digests": {
+        "default": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "noOptional": "4ce565e6b81748cffb7a90c0eab51a93288f403e944bb53f242811c22009d68f"
+      }
+    }
+  ],
+  "allowedDifferences": [
+    {
+      "probe": "help",
+      "field": "stdout",
+      "profiles": ["default", "noOptional"],
+      "reason": "documented reduced help"
+    }
+  ]
+}
