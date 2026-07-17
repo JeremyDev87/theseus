@@ -6,8 +6,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -16,13 +19,7 @@ import (
 
 func Run(command string, args []string, cwd string, timeout time.Duration) Result {
 	started := time.Now()
-	actualCommand, actualArgs := command, args
-	lower := strings.ToLower(command)
-	if strings.HasSuffix(lower, ".cmd") || strings.HasSuffix(lower, ".bat") {
-		actualCommand = "cmd.exe"
-		actualArgs = append([]string{"/d", "/s", "/c", command}, args...)
-	}
-	cmd := exec.Command(actualCommand, actualArgs...)
+	cmd := windowsCommand(command, args)
 	cmd.Dir = cwd
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -70,6 +67,35 @@ func Run(command string, args []string, cwd string, timeout time.Duration) Resul
 		result.SpawnError = cleanupError
 	}
 	return result
+}
+
+func windowsCommand(command string, args []string) *exec.Cmd {
+	lower := strings.ToLower(command)
+	if !strings.HasSuffix(lower, ".cmd") && !strings.HasSuffix(lower, ".bat") {
+		return exec.Command(command, args...)
+	}
+	comspec := os.Getenv("COMSPEC")
+	if comspec == "" {
+		if systemRoot := os.Getenv("SystemRoot"); systemRoot != "" {
+			comspec = filepath.Join(systemRoot, "System32", "cmd.exe")
+		} else {
+			comspec = "cmd.exe"
+		}
+	}
+	inner := make([]string, 0, len(args)+1)
+	inner = append(inner, quoteCmdToken(command))
+	for _, arg := range args {
+		inner = append(inner, quoteCmdToken(arg))
+	}
+	cmd := exec.Command(comspec)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CmdLine: quoteCmdToken(comspec) + ` /d /v:off /s /c "` + strings.Join(inner, " ") + `"`,
+	}
+	return cmd
+}
+
+func quoteCmdToken(value string) string {
+	return `"` + strings.ReplaceAll(value, `"`, `""`) + `"`
 }
 
 func createKillJob(pid uint32) (windows.Handle, error) {
