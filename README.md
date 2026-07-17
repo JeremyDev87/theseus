@@ -69,6 +69,24 @@ A local source command can participate as another subject:
 
 Every declared field is compared across every subject/profile pair. Temporary subject roots and CRLF line endings are normalized automatically; additional text normalization must be declared explicitly.
 
+### JSON output paths
+
+`expect.stdoutJson` accepts legacy dotted paths for simple object keys and RFC 6901 JSON Pointer for dotted keys, escaped tokens, and arrays:
+
+```json
+{
+  "expect": {
+    "stdoutJson": [
+      { "path": "meta.version", "type": "string" },
+      { "path": "/meta/a.b", "type": "number" },
+      { "path": "/items/0/name", "type": "string" }
+    ]
+  }
+}
+```
+
+JSON Pointer uses `~1` for `/` and `~0` for `~`. Path traversal reads own properties only and never accepts inherited prototype properties as evidence.
+
 ### Exact allowed deltas
 
 An intentional difference is admitted only for one `probe × profile pair × field`, with exact values or SHA-256 digests:

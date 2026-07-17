@@ -166,12 +166,23 @@ function checkJsonExpectations(
 }
 
 function getPath(value: unknown, path: string): unknown {
+  const segments = path.startsWith("/") ? parseJsonPointer(path) : path.split(".");
+  if (!segments) return undefined;
   let current = value;
-  for (const segment of path.split(".")) {
-    if (current === null || typeof current !== "object" || !(segment in current)) return undefined;
+  for (const segment of segments) {
+    if (current === null || typeof current !== "object" || !Object.hasOwn(current, segment)) return undefined;
     current = (current as Record<string, unknown>)[segment];
   }
   return current;
+}
+
+function parseJsonPointer(path: string): string[] | null {
+  const segments: string[] = [];
+  for (const token of path.slice(1).split("/")) {
+    if (/~(?:[^01]|$)/.test(token)) return null;
+    segments.push(token.replaceAll("~1", "/").replaceAll("~0", "~"));
+  }
+  return segments;
 }
 
 function jsonType(value: unknown): JsonValueType | "undefined" {
