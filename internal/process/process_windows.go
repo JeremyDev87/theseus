@@ -36,6 +36,17 @@ func Run(command string, args []string, cwd string, timeout time.Duration) Resul
 			DurationMS: time.Since(started).Milliseconds(),
 		}
 	}
+	if resumeErr := resumeMainThread(uint32(cmd.Process.Pid)); resumeErr != nil {
+		_ = windows.TerminateJobObject(job, 1)
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		_ = windows.CloseHandle(job)
+		return Result{
+			Stdout: stdout.String(), Stderr: stderr.String(),
+			SpawnError: fmt.Sprintf("unable to resume process after Windows Job Object assignment: %v", resumeErr),
+			DurationMS: time.Since(started).Milliseconds(),
+		}
+	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	timer := time.NewTimer(timeout)
@@ -72,7 +83,9 @@ func Run(command string, args []string, cwd string, timeout time.Duration) Resul
 func windowsCommand(command string, args []string) *exec.Cmd {
 	lower := strings.ToLower(command)
 	if !strings.HasSuffix(lower, ".cmd") && !strings.HasSuffix(lower, ".bat") {
-		return exec.Command(command, args...)
+		cmd := exec.Command(command, args...)
+		cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED}
+		return cmd
 	}
 	comspec := os.Getenv("COMSPEC")
 	if comspec == "" {
@@ -82,20 +95,47 @@ func windowsCommand(command string, args []string) *exec.Cmd {
 			comspec = "cmd.exe"
 		}
 	}
-	inner := make([]string, 0, len(args)+1)
-	inner = append(inner, quoteCmdToken(command))
-	for _, arg := range args {
-		inner = append(inner, quoteCmdToken(arg))
-	}
 	cmd := exec.Command(comspec)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CmdLine: quoteCmdToken(comspec) + ` /d /v:off /s /c "` + strings.Join(inner, " ") + `"`,
+		CmdLine:       syscall.EscapeArg(comspec) + " " + cmdBatchArguments(command, args),
+		CreationFlags: windows.CREATE_SUSPENDED,
 	}
 	return cmd
 }
 
-func quoteCmdToken(value string) string {
-	return `"` + strings.ReplaceAll(value, `"`, `""`) + `"`
+func resumeMainThread(pid uint32) error {
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseHandle(snapshot)
+	entry := windows.ThreadEntry32{Size: uint32(unsafe.Sizeof(windows.ThreadEntry32{}))}
+	if err := windows.Thread32First(snapshot, &entry); err != nil {
+		return err
+	}
+	for {
+		if entry.OwnerProcessID == pid {
+			thread, err := windows.OpenThread(windows.THREAD_SUSPEND_RESUME, false, entry.ThreadID)
+			if err != nil {
+				return err
+			}
+			previous, resumeErr := windows.ResumeThread(thread)
+			_ = windows.CloseHandle(thread)
+			if resumeErr != nil {
+				return resumeErr
+			}
+			if previous != 1 {
+				return fmt.Errorf("unexpected primary thread suspend count %d", previous)
+			}
+			return nil
+		}
+		if err := windows.Thread32Next(snapshot, &entry); err != nil {
+			if errors.Is(err, windows.ERROR_NO_MORE_FILES) {
+				return fmt.Errorf("primary thread not found for process %d", pid)
+			}
+			return err
+		}
+	}
 }
 
 func createKillJob(pid uint32) (windows.Handle, error) {
