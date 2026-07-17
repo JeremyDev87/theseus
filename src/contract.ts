@@ -191,7 +191,8 @@ function parseAllowedDeltas(raw: unknown, probeIds: Set<string>, profileNames: S
       result.toSha256 = toSha256;
       if ("from" in delta || "to" in delta) throw new ContractError(`${path}: non-exit delta must use fromSha256 and toSha256`);
     }
-    const key = `${probe}\u0000${between.join("\u0000")}\u0000${field}`;
+    const canonicalPair = [...between].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+    const key = `${probe}\u0000${canonicalPair.join("\u0000")}\u0000${field}`;
     if (seen.has(key)) throw new ContractError(`${path}: duplicate allowed delta`);
     seen.add(key);
     return result;

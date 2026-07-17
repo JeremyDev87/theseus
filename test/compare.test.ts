@@ -124,3 +124,41 @@ test("checks typed stdout JSON paths", () => {
   const fail = compareReceipts(contract, [receipt("default", { exit: 0, stdout: '{"meta":{"version":1}}' })]);
   assert.deepEqual(fail.findings.map((finding) => finding.code), ["THS-EXPECT-002", "THS-EXPECT-002"]);
 });
+
+test("supports JSON Pointer for dotted keys, arrays, and escaped tokens", () => {
+  const contract: TheseusContract = {
+    ...baseContract,
+    probes: [
+      {
+        ...baseContract.probes[0]!,
+        compare: ["exit"],
+        expect: {
+          stdoutJson: [
+            { path: "/meta/a.b", type: "number" },
+            { path: "/items/0/name", type: "string" },
+            { path: "/escaped~1key/~0value", type: "boolean" },
+          ],
+        },
+      },
+    ],
+  };
+  const output = '{"meta":{"a.b":1},"items":[{"name":"first"}],"escaped/key":{"~value":true}}';
+  const result = compareReceipts(contract, [receipt("default", { exit: 0, stdout: output })]);
+  assert.deepEqual(result.findings, []);
+});
+
+test("does not resolve inherited JSON properties", () => {
+  const contract: TheseusContract = {
+    ...baseContract,
+    probes: [
+      {
+        ...baseContract.probes[0]!,
+        compare: ["exit"],
+        expect: { stdoutJson: [{ path: "meta.__proto__", type: "object" }] },
+      },
+    ],
+  };
+  const result = compareReceipts(contract, [receipt("default", { exit: 0, stdout: '{"meta":{}}' })]);
+  assert.deepEqual(result.findings.map((finding) => finding.code), ["THS-EXPECT-002"]);
+  assert.equal(result.findings[0]?.actual, "undefined");
+});

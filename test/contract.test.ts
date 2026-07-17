@@ -91,3 +91,31 @@ test("reserves the source profile name for the source subject", () => {
     /profiles\.source is reserved/,
   );
 });
+
+test("rejects reversed duplicates for the same allowed-delta profile pair", () => {
+  assert.throws(
+    () =>
+      parseContract({
+        ...valid,
+        allowedDeltas: [
+          {
+            probe: "help",
+            between: ["default", "noOptional"],
+            field: "exit",
+            from: 0,
+            to: 1,
+            reason: "documented fallback",
+          },
+          {
+            probe: "help",
+            between: ["noOptional", "default"],
+            field: "exit",
+            from: 1,
+            to: 0,
+            reason: "same pair reversed",
+          },
+        ],
+      }),
+    /duplicate allowed delta/,
+  );
+});
