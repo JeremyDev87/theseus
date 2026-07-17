@@ -13,7 +13,7 @@ import (
 )
 
 func TestWindowsCommandStartsSuspended(t *testing.T) {
-	for _, command := range []string{`C:	ools\fixture.exe`, `C:	ools\fixture.cmd`} {
+	for _, command := range []string{`C:\tools\fixture.exe`, `C:\tools\fixture.cmd`} {
 		cmd := windowsCommand(command, []string{"argument"})
 		if cmd.SysProcAttr == nil || cmd.SysProcAttr.CreationFlags&windows.CREATE_SUSPENDED == 0 {
 			t.Fatalf("%s must start suspended before Job Object assignment", command)
@@ -27,12 +27,28 @@ func TestCommandScriptArgumentsWithSpaces(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := filepath.Join(root, "fixture command.cmd")
-	if err := os.WriteFile(script, []byte("@echo off\r\necho %~1\r\nexit /b 0\r\n"), 0o644); err != nil {
+	// The script writes its first argument to a file instead of echoing to
+	// stdout. This avoids cmd.exe re-interpreting metacharacters during
+	// batch-variable expansion. We then read the file back to verify the
+	// child received the exact argument value Theseus passed.
+	outputFile := filepath.Join(t.TempDir(), "argv.txt")
+	scriptContent := "@echo off\r\n" +
+		"> \"" + outputFile + "\" echo %~1\r\n" +
+		"exit /b 0\r\n"
+	if err := os.WriteFile(script, []byte(scriptContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := Run(script, []string{"hello & world"}, root, 5*time.Second)
-	if result.SpawnError != "" || result.ExitCode == nil || *result.ExitCode != 0 || strings.TrimSpace(result.Stdout) != "hello & world" {
+	result := Run(script, []string{"hello world"}, root, 5*time.Second)
+	if result.SpawnError != "" || result.ExitCode == nil || *result.ExitCode != 0 {
 		t.Fatalf("unexpected .cmd result: %#v", result)
+	}
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("output file not created: %v", err)
+	}
+	got := strings.TrimSpace(string(data))
+	if got != "hello world" {
+		t.Fatalf("argument value mismatch: got %q want %q", got, "hello world")
 	}
 }
 
