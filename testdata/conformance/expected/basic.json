@@ -1,0 +1,31 @@
+{
+  "findings": [
+    {
+      "code": "THS-EXPECT-001",
+      "probe": "help",
+      "field": "exit",
+      "profiles": ["noOptional"],
+      "message": "noOptional/help: expected exit 0, observed 1",
+      "expected": 0,
+      "actual": 1
+    },
+    {
+      "code": "THS-PARITY-001",
+      "probe": "help",
+      "field": "exit",
+      "profiles": ["default", "noOptional"],
+      "message": "help: exit differs between default and noOptional",
+      "actual": { "default": 0, "noOptional": 1 }
+    },
+    {
+      "code": "THS-RUNTIME-001",
+      "probe": "help",
+      "field": "runtime",
+      "profiles": ["default", "noOptional"],
+      "message": "help: runtime differs between default and noOptional",
+      "actual": { "default": "runtime-default", "noOptional": "runtime-no-optional" },
+      "digests": { "default": "runtime-default-sha", "noOptional": "runtime-no-optional-sha" }
+    }
+  ],
+  "allowedDifferences": []
+}

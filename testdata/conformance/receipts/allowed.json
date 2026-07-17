@@ -1,0 +1,22 @@
+[
+  {
+    "subject": "installed",
+    "profile": "default",
+    "installArgs": [],
+    "environment": { "platform": "fixture", "arch": "fixture", "node": "fixture", "npm": "fixture" },
+    "runtime": { "kind": "installed", "binName": "fixture", "executablePath": "fixture", "executableRealPath": "fixture", "optionalDependencies": [], "canonical": "same", "sha256": "same" },
+    "probes": [
+      { "id": "help", "argv": ["--help"], "exitCode": 0, "signal": null, "timedOut": false, "stdout": "full\n", "stderr": "", "stdoutSha256": "0e716a5fef4e6dc1bcfff22ad52f73ca4eee3f4ea8292f4a1918daa32592889f", "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "durationMs": 1 }
+    ]
+  },
+  {
+    "subject": "installed",
+    "profile": "noOptional",
+    "installArgs": ["--omit=optional"],
+    "environment": { "platform": "fixture", "arch": "fixture", "node": "fixture", "npm": "fixture" },
+    "runtime": { "kind": "installed", "binName": "fixture", "executablePath": "fixture", "executableRealPath": "fixture", "optionalDependencies": [], "canonical": "same", "sha256": "same" },
+    "probes": [
+      { "id": "help", "argv": ["--help"], "exitCode": 0, "signal": null, "timedOut": false, "stdout": "fallback\n", "stderr": "unexpected\n", "stdoutSha256": "f8057a78b3af83f1e8fb828323452f99da1f06971d4be411961c9f5b9a264504", "stderrSha256": "4ce565e6b81748cffb7a90c0eab51a93288f403e944bb53f242811c22009d68f", "durationMs": 2 }
+    ]
+  }
+]

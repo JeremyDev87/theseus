@@ -1,0 +1,36 @@
+[
+  {
+    "subject": "installed",
+    "profile": "default",
+    "installArgs": [],
+    "environment": { "platform": "darwin", "arch": "arm64", "node": "v20.0.0", "npm": "10.0.0" },
+    "runtime": {
+      "kind": "installed", "packageName": "fixture", "packageVersion": "1.0.0",
+      "binName": "fixture", "executablePath": "node_modules/.bin/fixture",
+      "executableRealPath": "node_modules/fixture/bin.js", "optionalDependencies": [],
+      "canonical": "runtime-default", "sha256": "runtime-default-sha"
+    },
+    "probes": [{
+      "id": "help", "argv": ["--help"], "exitCode": 0, "signal": null, "timedOut": false,
+      "stdout": "same\n", "stderr": "", "stdoutSha256": "shared-out", "stderrSha256": "empty",
+      "durationMs": 1
+    }]
+  },
+  {
+    "subject": "installed",
+    "profile": "noOptional",
+    "installArgs": ["--omit=optional"],
+    "environment": { "platform": "darwin", "arch": "arm64", "node": "v20.0.0", "npm": "10.0.0" },
+    "runtime": {
+      "kind": "installed", "packageName": "fixture", "packageVersion": "1.0.0",
+      "binName": "fixture", "executablePath": "node_modules/.bin/fixture",
+      "executableRealPath": "node_modules/fixture/bin.js", "optionalDependencies": [],
+      "canonical": "runtime-no-optional", "sha256": "runtime-no-optional-sha"
+    },
+    "probes": [{
+      "id": "help", "argv": ["--help"], "exitCode": 1, "signal": null, "timedOut": false,
+      "stdout": "same\n", "stderr": "", "stdoutSha256": "shared-out", "stderrSha256": "empty",
+      "durationMs": 999
+    }]
+  }
+]
