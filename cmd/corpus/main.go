@@ -28,13 +28,7 @@ func main() {
 	if binary == "" {
 		binary = filepath.Join("build", executableName())
 	}
-	cases := []corpusCase{
-		{Name: "maximus-strict", Target: "@jeremyfellaz/maximus@0.1.4", ContractPath: "testdata/corpus/maximus.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-002", "THS-RUNTIME-001", "THS-PARITY-001"}},
-		{Name: "maximus-allowed", Target: "@jeremyfellaz/maximus@0.1.4", ContractPath: "testdata/corpus/maximus-allowed.json", ExpectedExit: 0, ExpectedStatus: "pass", ExpectedFindings: []string{}},
-		{Name: "kratos", Target: "@jeremyfellaz/kratos@0.3.7", ContractPath: "testdata/corpus/kratos.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002", "THS-RUNTIME-001", "THS-PARITY-002"}},
-		{Name: "legolas", Target: "@jeremyfellaz/legolas@0.1.7", ContractPath: "testdata/corpus/legolas.json", ExpectedExit: 0, ExpectedStatus: "pass", ExpectedFindings: []string{}},
-		{Name: "ast-grep", Target: "@ast-grep/cli@0.44.1", ContractPath: "testdata/corpus/ast-grep.json", ExpectedExit: 2, ExpectedStatus: "incomplete", ExpectedFindings: []string{}},
-	}
+	cases := corpusCases()
 	failures := 0
 	for _, item := range cases {
 		command := exec.Command(binary, "verify", item.Target, "--contract", item.ContractPath, "--format", "json")
@@ -74,6 +68,20 @@ func main() {
 	}
 	if failures > 0 {
 		os.Exit(1)
+	}
+}
+
+func corpusCases() []corpusCase {
+	return []corpusCase{
+		{Name: "maximus-strict", Target: "@jeremyfellaz/maximus@0.1.4", ContractPath: "testdata/corpus/maximus.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-002", "THS-RUNTIME-001", "THS-PARITY-001"}},
+		{Name: "maximus-allowed", Target: "@jeremyfellaz/maximus@0.1.4", ContractPath: "testdata/corpus/maximus-allowed.json", ExpectedExit: 0, ExpectedStatus: "pass", ExpectedFindings: []string{}},
+		{Name: "kratos", Target: "@jeremyfellaz/kratos@0.3.7", ContractPath: "testdata/corpus/kratos.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002", "THS-RUNTIME-001", "THS-PARITY-002"}},
+		{Name: "legolas", Target: "@jeremyfellaz/legolas@0.1.7", ContractPath: "testdata/corpus/legolas.json", ExpectedExit: 0, ExpectedStatus: "pass", ExpectedFindings: []string{}},
+		{Name: "ast-grep", Target: "@ast-grep/cli@0.44.1", ContractPath: "testdata/corpus/ast-grep.json", ExpectedExit: 2, ExpectedStatus: "incomplete", ExpectedFindings: []string{}},
+		{Name: "biome", Target: "@biomejs/biome@2.5.4", ContractPath: "testdata/corpus/biome.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002", "THS-RUNTIME-001", "THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002"}},
+		{Name: "turbo", Target: "turbo@2.10.5", ContractPath: "testdata/corpus/turbo.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-002", "THS-RUNTIME-001"}},
+		{Name: "esbuild", Target: "esbuild@0.28.1", ContractPath: "testdata/corpus/esbuild.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-RUNTIME-001"}},
+		{Name: "oxlint", Target: "oxlint@1.74.0", ContractPath: "testdata/corpus/oxlint.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002", "THS-RUNTIME-001", "THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002"}},
 	}
 }
 

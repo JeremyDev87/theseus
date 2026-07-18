@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "bin": "oxlint",
+  "profiles": {
+    "default": { "installArgs": [] },
+    "noOptional": { "installArgs": ["--omit=optional"] }
+  },
+  "probes": [
+    {
+      "id": "help",
+      "argv": ["--help"],
+      "timeoutMs": 10000,
+      "compare": ["exit", "stdout", "stderr", "runtime"]
+    },
+    {
+      "id": "version",
+      "argv": ["--version"],
+      "timeoutMs": 10000,
+      "compare": ["exit", "stdout", "stderr"]
+    }
+  ]
+}
