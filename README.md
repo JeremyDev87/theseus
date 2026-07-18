@@ -129,13 +129,13 @@ Each JSON report binds results to artifact SHA-256/size, package identity, OS/ar
 
 ## Corpus
 
-Pinned contracts under `testdata/corpus/` exercise Maximus, Kratos, Legolas, and ast-grep. Build first, then run the explicit networked ledger:
+Pinned contracts under `testdata/corpus/` exercise Maximus, Kratos, Legolas, ast-grep, Biome, Turbo, esbuild, and Oxlint. Build first, then run the explicit networked ledger:
 
 ```bash
 go run ./cmd/corpus
 ```
 
-Expected process outcomes are Maximus strict `1`, Maximus allowed `0`, Kratos `1`, Legolas `0`, and ast-grep `2` (`incomplete`, never clean).
+Expected process outcomes are Maximus strict `1`, Maximus allowed `0`, Kratos `1`, Legolas `0`, ast-grep `2` (`incomplete`, never clean), and Biome/Turbo/esbuild/Oxlint `1` (`drift`). The four public optional-native packages passed a two-run stability gate on Darwin arm64 without package-specific normalizers or product-code exceptions; this is host-scoped corpus evidence, not a cross-platform claim.
 
 ## Security and scope boundaries
 

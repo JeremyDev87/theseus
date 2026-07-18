@@ -1,11 +1,35 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/JeremyDev87/theseus/internal/model"
 )
+
+func TestCorpusCasesIncludePublicOptionalNativeKillGate(t *testing.T) {
+	byName := map[string]corpusCase{}
+	for _, item := range corpusCases() {
+		byName[item.Name] = item
+	}
+
+	expected := []corpusCase{
+		{Name: "biome", Target: "@biomejs/biome@2.5.4", ContractPath: "testdata/corpus/biome.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002", "THS-RUNTIME-001", "THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002"}},
+		{Name: "turbo", Target: "turbo@2.10.5", ContractPath: "testdata/corpus/turbo.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-002", "THS-RUNTIME-001"}},
+		{Name: "esbuild", Target: "esbuild@0.28.1", ContractPath: "testdata/corpus/esbuild.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-RUNTIME-001"}},
+		{Name: "oxlint", Target: "oxlint@1.74.0", ContractPath: "testdata/corpus/oxlint.json", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002", "THS-RUNTIME-001", "THS-PARITY-001", "THS-PARITY-002", "THS-PARITY-002"}},
+	}
+	for _, want := range expected {
+		got, ok := byName[want.Name]
+		if !ok {
+			t.Fatalf("missing corpus case %q", want.Name)
+		}
+		if got.Target != want.Target || got.ContractPath != want.ContractPath || got.ExpectedExit != want.ExpectedExit || got.ExpectedStatus != want.ExpectedStatus || !slices.Equal(got.ExpectedFindings, want.ExpectedFindings) {
+			t.Fatalf("corpus case %q = %+v, want %+v", want.Name, got, want)
+		}
+	}
+}
 
 func TestValidateCorpusResultChecksCompleteLedger(t *testing.T) {
 	item := corpusCase{Name: "fixture", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-001", "THS-RUNTIME-001"}}
