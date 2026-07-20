@@ -378,6 +378,7 @@ func parseExpectation(raw json.RawMessage, path string) (*model.ProbeExpectation
 		if err := strictDecode(wire.StdoutJSON, &stdoutJSON); err != nil || len(stdoutJSON) == 0 {
 			return nil, fail(path + ".stdoutJson must be a non-empty array")
 		}
+		seenExpectations := map[string]bool{}
 		for index, item := range stdoutJSON {
 			if strings.TrimSpace(item.Path) == "" {
 				return nil, fail(fmt.Sprintf("%s.stdoutJson[%d].path must not be empty", path, index))
@@ -385,6 +386,11 @@ func parseExpectation(raw json.RawMessage, path string) (*model.ProbeExpectation
 			if !validJSONType(item.Type) {
 				return nil, fail(fmt.Sprintf("%s.stdoutJson[%d].type is invalid", path, index))
 			}
+			identity := item.Path + "\x00" + item.Type
+			if seenExpectations[identity] {
+				return nil, fail(fmt.Sprintf("%s.stdoutJson contains duplicate stdoutJson expectation for path %s and type %s", path, item.Path, item.Type))
+			}
+			seenExpectations[identity] = true
 			result.StdoutJSON = append(result.StdoutJSON, model.JSONPathExpectation{Path: item.Path, Type: model.JSONValueType(item.Type)})
 		}
 	}

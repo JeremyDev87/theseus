@@ -1,10 +1,12 @@
 {
   "findings": [
     {
+      "id": "ths:v1:7519bedc7868ef4d72751c8108ab74b5d06a47a7cd6099013f1a02bc7d669792",
       "code": "THS-PARITY-002",
       "probe": "help",
       "field": "stderr",
       "profiles": ["default", "noOptional"],
+      "locator": "compare:stderr",
       "message": "help: stderr differs between default and noOptional",
       "actual": { "default": "", "noOptional": "unexpected\n" },
       "digests": {

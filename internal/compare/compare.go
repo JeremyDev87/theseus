@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/JeremyDev87/theseus/internal/evidenceid"
 	"github.com/JeremyDev87/theseus/internal/model"
 )
 
@@ -21,6 +22,7 @@ func Receipts(contract model.Contract, receipts []model.RunReceipt) model.Compar
 			if probe.Expect != nil && probe.Expect.Exit != nil && !equalIntPointer(observed.ExitCode, probe.Expect.Exit) {
 				result.Findings = append(result.Findings, model.Finding{
 					Code: "THS-EXPECT-001", Probe: probe.ID, Field: "exit", Profiles: []string{receipt.Profile},
+					Locator:  "expect:exit",
 					Message:  fmt.Sprintf("%s/%s: expected exit %d, observed %s", receipt.Profile, probe.ID, *probe.Expect.Exit, displayExit(observed.ExitCode)),
 					Expected: *probe.Expect.Exit, Actual: exitValue(observed.ExitCode),
 				})
@@ -51,6 +53,9 @@ func Receipts(contract model.Contract, receipts []model.RunReceipt) model.Compar
 				}
 			}
 		}
+	}
+	for index := range result.Findings {
+		result.Findings[index].ID = evidenceid.Finding(result.Findings[index])
 	}
 	return result
 }
@@ -110,33 +115,34 @@ func nullableValue(value *int) any {
 func finding(field model.CompareField, probe, leftProfile, rightProfile string, left, right, displayLeft, displayRight any) model.Finding {
 	profiles := []string{leftProfile, rightProfile}
 	actual := map[string]any{leftProfile: displayLeft, rightProfile: displayRight}
+	locator := "compare:" + string(field)
 	if field == model.FieldExit {
-		return model.Finding{Code: "THS-PARITY-001", Probe: probe, Field: string(field), Profiles: profiles, Message: fmt.Sprintf("%s: exit differs between %s and %s", probe, leftProfile, rightProfile), Actual: actual}
+		return model.Finding{Code: "THS-PARITY-001", Probe: probe, Field: string(field), Profiles: profiles, Locator: locator, Message: fmt.Sprintf("%s: exit differs between %s and %s", probe, leftProfile, rightProfile), Actual: actual}
 	}
 	code := "THS-PARITY-002"
 	if field == model.FieldRuntime {
 		code = "THS-RUNTIME-001"
 	}
-	return model.Finding{Code: code, Probe: probe, Field: string(field), Profiles: profiles, Message: fmt.Sprintf("%s: %s differs between %s and %s", probe, field, leftProfile, rightProfile), Actual: actual, Digests: map[string]string{leftProfile: fmt.Sprint(left), rightProfile: fmt.Sprint(right)}}
+	return model.Finding{Code: code, Probe: probe, Field: string(field), Profiles: profiles, Locator: locator, Message: fmt.Sprintf("%s: %s differs between %s and %s", probe, field, leftProfile, rightProfile), Actual: actual, Digests: map[string]string{leftProfile: fmt.Sprint(left), rightProfile: fmt.Sprint(right)}}
 }
 
 func checkJSON(probe, profile string, receipt model.ProbeReceipt, expectations []model.JSONPathExpectation, findings *[]model.Finding) {
 	var parsed any
 	if !json.Valid([]byte(receipt.Stdout)) {
-		*findings = append(*findings, model.Finding{Code: "THS-EXPECT-002", Probe: probe, Field: "stdoutJson", Profiles: []string{profile}, Message: fmt.Sprintf("%s/%s: stdout is not valid JSON", profile, probe)})
+		*findings = append(*findings, model.Finding{Code: "THS-EXPECT-002", Probe: probe, Field: "stdoutJson", Profiles: []string{profile}, Locator: "expect:stdoutJson:document", Message: fmt.Sprintf("%s/%s: stdout is not valid JSON", profile, probe)})
 		return
 	}
 	decoder := json.NewDecoder(bytes.NewBufferString(receipt.Stdout))
 	decoder.UseNumber()
 	if err := decoder.Decode(&parsed); err != nil {
-		*findings = append(*findings, model.Finding{Code: "THS-EXPECT-002", Probe: probe, Field: "stdoutJson", Profiles: []string{profile}, Message: fmt.Sprintf("%s/%s: stdout is not valid JSON", profile, probe)})
+		*findings = append(*findings, model.Finding{Code: "THS-EXPECT-002", Probe: probe, Field: "stdoutJson", Profiles: []string{profile}, Locator: "expect:stdoutJson:document", Message: fmt.Sprintf("%s/%s: stdout is not valid JSON", profile, probe)})
 		return
 	}
 	for _, expectation := range expectations {
 		value, found := getPath(parsed, expectation.Path)
 		actualType := jsonType(value, found)
 		if actualType != string(expectation.Type) {
-			*findings = append(*findings, model.Finding{Code: "THS-EXPECT-002", Probe: probe, Field: "stdoutJson", Profiles: []string{profile}, Message: fmt.Sprintf("%s/%s: JSON path %s expected %s, observed %s", profile, probe, expectation.Path, expectation.Type, actualType), Expected: string(expectation.Type), Actual: actualType})
+			*findings = append(*findings, model.Finding{Code: "THS-EXPECT-002", Probe: probe, Field: "stdoutJson", Profiles: []string{profile}, Locator: fmt.Sprintf("expect:stdoutJson:%s:%s", expectation.Path, expectation.Type), Message: fmt.Sprintf("%s/%s: JSON path %s expected %s, observed %s", profile, probe, expectation.Path, expectation.Type, actualType), Expected: string(expectation.Type), Actual: actualType})
 		}
 	}
 }

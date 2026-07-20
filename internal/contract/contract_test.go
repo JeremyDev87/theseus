@@ -79,6 +79,13 @@ func TestRejectsNullExpectationAndReversedDeltaDuplicate(t *testing.T) {
 	}
 }
 
+func TestRejectsDuplicateJSONExpectationIdentity(t *testing.T) {
+	input := strings.Replace(valid, `"expect":{"exit":0}`, `"expect":{"stdoutJson":[{"path":"meta.version","type":"string"},{"path":"meta.version","type":"string"}]}`, 1)
+	if _, err := Parse([]byte(input)); err == nil || !strings.Contains(err.Error(), "duplicate stdoutJson expectation") {
+		t.Fatalf("expected duplicate stdoutJson identity rejection, got %v", err)
+	}
+}
+
 func TestAcceptsJSONNumericSpellingsThatAreIntegers(t *testing.T) {
 	input := strings.Replace(valid, `"version": 1`, `"version": 1.0`, 1)
 	input = strings.Replace(input, `"timeoutMs":5000`, `"timeoutMs":5e3`, 1)
