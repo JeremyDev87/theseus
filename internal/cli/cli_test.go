@@ -8,9 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/JeremyDev87/theseus/internal/canonical"
 	"github.com/JeremyDev87/theseus/internal/evidenceid"
 	"github.com/JeremyDev87/theseus/internal/model"
 	"github.com/JeremyDev87/theseus/internal/reportdiff"
+	"github.com/JeremyDev87/theseus/internal/runtimeidentity"
 )
 
 func invoke(args ...string) (int, string, string) {
@@ -140,9 +142,16 @@ func TestDiffRejectsDuplicateKeysAndTimedOutPassReport(t *testing.T) {
 	timedOut := cliReport(nil)
 	timedOut.Receipts[0].Probes = []model.ProbeReceipt{{
 		ID: "help", Argv: []string{"--help"}, TimedOut: true,
-		StdoutSHA256: "stdout-sha", StderrSHA256: "stderr-sha",
+		StdoutSHA256: canonical.SHA256String(""), StderrSHA256: canonical.SHA256String(""),
 	}}
 	timedOutJSON, err := json.Marshal(timedOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tampered := cliReport(nil)
+	tampered.Receipts[0].Probes[0].Stdout = "tampered"
+	tamperedJSON, err := json.Marshal(tampered)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,6 +164,7 @@ func TestDiffRejectsDuplicateKeysAndTimedOutPassReport(t *testing.T) {
 		{name: "duplicate root key", data: []byte(strings.Replace(string(validJSON), `"schemaVersion":2`, `"schemaVersion":1,"schemaVersion":2`, 1)), want: "duplicate JSON object key"},
 		{name: "duplicate nested key", data: []byte(strings.Replace(string(validJSON), `"name":"theseus"`, `"name":"other","name":"theseus"`, 1)), want: "duplicate JSON object key"},
 		{name: "timed out pass", data: timedOutJSON, want: "timed out probe requires matching incomplete evidence"},
+		{name: "tampered probe digest", data: tamperedJSON, want: "stdoutSha256 mismatch"},
 	}
 
 	validPath := writeCLIReport(t, valid)
@@ -180,25 +190,61 @@ func cliReport(findings []model.Finding) model.VerificationReport {
 	if len(findings) > 0 {
 		status, exitCode = "drift", 1
 	}
+	receipts := []model.RunReceipt{completeCLIReceipt("default"), completeCLIReceipt("noOptional")}
+	for index := range findings {
+		applyCLIFindingDifference(&findings[index], receipts)
+	}
 	return model.VerificationReport{
 		SchemaVersion: 2, IdentityVersion: 1,
 		Tool: model.ToolReceipt{Name: "theseus", Version: "0.1.0"}, Target: "fixture", Status: status, ExitCode: exitCode,
-		Artifact: model.ArtifactReceipt{PackageName: "fixture", PackageVersion: "1.0.0", Filename: "fixture.tgz", SHA256: "fixture-sha", Size: 1},
-		Receipts: []model.RunReceipt{completeCLIReceipt("default")}, Incomplete: []model.IncompleteEvidence{},
+		Artifact: model.ArtifactReceipt{PackageName: "fixture", PackageVersion: "1.0.0", Filename: "fixture.tgz", SHA256: canonical.SHA256String("fixture artifact"), Size: 1},
+		Receipts: receipts, Incomplete: []model.IncompleteEvidence{},
 		Comparison: model.ComparisonResult{Findings: findings, AllowedDifferences: []model.AllowedDifference{}},
 	}
 }
 
 func completeCLIReceipt(profile string) model.RunReceipt {
+	runtime, err := runtimeidentity.Create(model.RuntimeIdentity{
+		Kind: "installed", PackageName: "fixture", PackageVersion: "1.0.0", BinName: "fixture",
+		ExecutablePath: "node_modules/.bin/fixture", ExecutableRealPath: "node_modules/fixture/bin.js",
+		OptionalDependencies: []model.OptionalDependencyReceipt{},
+	})
+	if err != nil {
+		panic(err)
+	}
+	exit := 0
 	return model.RunReceipt{
 		Subject: "installed", Profile: profile, InstallArgs: []string{},
 		Environment: model.EnvironmentReceipt{Platform: "darwin", Arch: "arm64", Node: "v20.0.0", NPM: "10.0.0"},
-		Runtime: model.RuntimeIdentity{
-			Kind: "installed", PackageName: "fixture", PackageVersion: "1.0.0", BinName: "fixture",
-			ExecutablePath: "node_modules/.bin/fixture", ExecutableRealPath: "node_modules/fixture/bin.js",
-			OptionalDependencies: []model.OptionalDependencyReceipt{}, Canonical: "runtime", SHA256: "runtime-sha",
+		Runtime:     runtime,
+		Probes: []model.ProbeReceipt{
+			{ID: "help", Argv: []string{"--help"}, ExitCode: &exit, StdoutSHA256: canonical.SHA256String(""), StderrSHA256: canonical.SHA256String("")},
+			{ID: "version", Argv: []string{"--version"}, ExitCode: &exit, StdoutSHA256: canonical.SHA256String(""), StderrSHA256: canonical.SHA256String("")},
 		},
-		Probes: []model.ProbeReceipt{},
+	}
+}
+
+func applyCLIFindingDifference(finding *model.Finding, receipts []model.RunReceipt) {
+	if len(finding.Profiles) != 2 {
+		return
+	}
+	right := &receipts[1]
+	for index := range right.Probes {
+		if right.Probes[index].ID != finding.Probe {
+			continue
+		}
+		if finding.Field == "exit" {
+			exit := 1
+			right.Probes[index].ExitCode = &exit
+		} else if finding.Field == "stdout" {
+			right.Probes[index].Stdout = "changed:" + finding.Probe
+			right.Probes[index].StdoutSHA256 = canonical.SHA256String(right.Probes[index].Stdout)
+			finding.Digests = map[string]string{
+				"default":    receipts[0].Probes[index].StdoutSHA256,
+				"noOptional": right.Probes[index].StdoutSHA256,
+			}
+		}
+		return
 	}
 }
 

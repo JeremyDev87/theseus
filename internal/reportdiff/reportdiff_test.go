@@ -8,8 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/JeremyDev87/theseus/internal/canonical"
 	"github.com/JeremyDev87/theseus/internal/evidenceid"
 	"github.com/JeremyDev87/theseus/internal/model"
+	"github.com/JeremyDev87/theseus/internal/runtimeidentity"
 )
 
 func TestDiffClassifiesLifecycle(t *testing.T) {
@@ -127,7 +129,7 @@ func TestParseRejectsSchemaV1UnknownFieldsDuplicateAndMismatchedIDs(t *testing.T
 	timedOutPass := verificationReport(nil, nil)
 	timedOutPass.Receipts[0].Probes = []model.ProbeReceipt{{
 		ID: "help", Argv: []string{"--help"}, TimedOut: true,
-		StdoutSHA256: "stdout-sha", StderrSHA256: "stderr-sha",
+		StdoutSHA256: canonical.SHA256String(""), StderrSHA256: canonical.SHA256String(""),
 	}}
 	timedOutPassJSON, _ := json.Marshal(timedOutPass)
 	cases = append(cases, struct {
@@ -160,7 +162,7 @@ func TestParseAcceptsProbeFailureWithMatchingIncompleteEvidence(t *testing.T) {
 			report := verificationReport(nil, []model.IncompleteEvidence{evidence})
 			report.Receipts[0].Probes = []model.ProbeReceipt{{
 				ID: "help", Argv: []string{"--help"}, Signal: test.signal, TimedOut: test.timedOut,
-				StdoutSHA256: "stdout-sha", StderrSHA256: "stderr-sha",
+				StdoutSHA256: canonical.SHA256String(""), StderrSHA256: canonical.SHA256String(""),
 			}}
 			data, err := json.Marshal(report)
 			if err != nil {
@@ -171,6 +173,124 @@ func TestParseAcceptsProbeFailureWithMatchingIncompleteEvidence(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseRejectsReceiptSelfIntegrityTampering(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*model.VerificationReport)
+		want   string
+	}{
+		{name: "artifact digest shape", mutate: func(report *model.VerificationReport) {
+			report.Artifact.SHA256 = "ABC123"
+		}, want: "artifact sha256 must be lowercase 64-hex"},
+		{name: "runtime canonical payload", mutate: func(report *model.VerificationReport) {
+			report.Receipts[0].Runtime.Canonical += " "
+			report.Receipts[0].Runtime.SHA256 = canonical.SHA256String(report.Receipts[0].Runtime.Canonical)
+		}, want: "runtime canonical payload mismatch"},
+		{name: "runtime digest", mutate: func(report *model.VerificationReport) {
+			report.Receipts[0].Runtime.SHA256 = strings.Repeat("0", 64)
+		}, want: "runtime sha256 mismatch"},
+		{name: "probe stdout digest", mutate: func(report *model.VerificationReport) {
+			report.Receipts[0].Probes[0].Stdout = "tampered"
+		}, want: "stdoutSha256 mismatch"},
+		{name: "profile canonicality", mutate: func(report *model.VerificationReport) {
+			report.Receipts[0].Profile = " default "
+		}, want: "profile must be canonical"},
+		{name: "subject runtime kind", mutate: func(report *model.VerificationReport) {
+			report.Receipts[0].Subject = "source"
+		}, want: "subject and runtime kind must match"},
+		{name: "installed package artifact", mutate: func(report *model.VerificationReport) {
+			runtime := report.Receipts[0].Runtime
+			runtime.PackageName = "other"
+			report.Receipts[0].Runtime, _ = runtimeidentity.Create(runtime)
+		}, want: "runtime package must match artifact"},
+		{name: "duplicate optional dependency", mutate: func(report *model.VerificationReport) {
+			runtime := report.Receipts[0].Runtime
+			runtime.OptionalDependencies = []model.OptionalDependencyReceipt{{Name: "native", Version: "1"}, {Name: "native", Version: "1"}}
+			report.Receipts[0].Runtime, _ = runtimeidentity.Create(runtime)
+		}, want: "duplicate optional dependency"},
+		{name: "finding profile reference", mutate: func(report *model.VerificationReport) {
+			finding := report.Comparison.Findings[0]
+			finding.Profiles[1] = "ghost"
+			finding.ID = evidenceid.Finding(finding)
+			report.Comparison.Findings[0] = finding
+		}, want: "references unknown profile"},
+		{name: "finding probe reference", mutate: func(report *model.VerificationReport) {
+			finding := report.Comparison.Findings[0]
+			finding.Probe = "ghost"
+			finding.ID = evidenceid.Finding(finding)
+			report.Comparison.Findings[0] = finding
+		}, want: "references unknown probe"},
+		{name: "finding digest reference", mutate: func(report *model.VerificationReport) {
+			report.Comparison.Findings[0].Digests["default"] = strings.Repeat("0", 64)
+		}, want: "finding digest does not match receipt"},
+		{name: "allowed difference unknown profile", mutate: func(report *model.VerificationReport) {
+			report.Comparison.AllowedDifferences[0].Profiles[1] = "ghost"
+		}, want: "references unknown profile"},
+		{name: "allowed difference without observed delta", mutate: func(report *model.VerificationReport) {
+			left := &report.Receipts[1].Probes[0]
+			left.Stdout = ""
+			left.StdoutSHA256 = canonical.SHA256String("")
+		}, want: "does not describe an observed difference"},
+		{name: "duplicate allowed difference", mutate: func(report *model.VerificationReport) {
+			report.Comparison.AllowedDifferences = append(report.Comparison.AllowedDifferences, report.Comparison.AllowedDifferences[0])
+		}, want: "duplicate allowed difference"},
+		{name: "allowed difference finding collision", mutate: func(report *model.VerificationReport) {
+			withFinding := verificationReport([]model.Finding{finding("THS-PARITY-002", "help", "stdout", "compare:stdout", "stdout drift")}, nil)
+			*report = withFinding
+			report.Comparison.AllowedDifferences = []model.AllowedDifference{{Probe: "help", Profiles: [2]string{"default", "noOptional"}, Field: model.FieldStdout, Reason: "expected"}}
+		}, want: "allowed difference conflicts with finding"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var report model.VerificationReport
+			if strings.HasPrefix(test.name, "finding") {
+				report = verificationReport([]model.Finding{finding("THS-PARITY-002", "help", "stdout", "compare:stdout", "stdout drift")}, nil)
+			} else if strings.HasPrefix(test.name, "allowed") || test.name == "duplicate allowed difference" {
+				report = allowedDifferenceReport()
+			} else {
+				report = verificationReport(nil, nil)
+			}
+			test.mutate(&report)
+			data, err := json.Marshal(report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Parse(data); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error=%v want substring %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestParseAcceptsReceiptBoundFindingAndAllowedDifference(t *testing.T) {
+	for name, report := range map[string]model.VerificationReport{
+		"finding":            verificationReport([]model.Finding{finding("THS-PARITY-002", "help", "stdout", "compare:stdout", "stdout drift")}, nil),
+		"allowed difference": allowedDifferenceReport(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			data, err := json.Marshal(report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Parse(data); err != nil {
+				t.Fatalf("valid receipt-bound report rejected: %v", err)
+			}
+		})
+	}
+}
+
+func allowedDifferenceReport() model.VerificationReport {
+	report := verificationReport(nil, nil)
+	probe := &report.Receipts[1].Probes[0]
+	probe.Stdout = "allowed difference"
+	probe.StdoutSHA256 = canonical.SHA256String(probe.Stdout)
+	report.Comparison.AllowedDifferences = []model.AllowedDifference{{
+		Probe: "help", Field: model.FieldStdout, Profiles: [2]string{"default", "noOptional"}, Reason: "fixture contract",
+	}}
+	return report
 }
 
 func TestLanguageNeutralDiffLifecycleFixture(t *testing.T) {
@@ -218,6 +338,11 @@ func TestLanguageNeutralDiffLifecycleFixture(t *testing.T) {
 func verificationReport(findings []model.Finding, incompleteEvidence []model.IncompleteEvidence) model.VerificationReport {
 	findings = nonNilFindings(findings)
 	incompleteEvidence = nonNilIncomplete(incompleteEvidence)
+	receipts := []model.RunReceipt{completeReceipt("default"), completeReceipt("noOptional")}
+	for index := range findings {
+		ensureFindingProbe(findings[index], receipts)
+		applyFindingDifference(&findings[index], receipts)
+	}
 	status, exitCode := "pass", 0
 	if len(incompleteEvidence) > 0 {
 		status, exitCode = "incomplete", 2
@@ -228,22 +353,99 @@ func verificationReport(findings []model.Finding, incompleteEvidence []model.Inc
 		SchemaVersion: 2, IdentityVersion: 1,
 		Tool:   model.ToolReceipt{Name: "theseus", Version: "0.1.0"},
 		Target: "fixture", Status: status, ExitCode: exitCode,
-		Artifact: model.ArtifactReceipt{PackageName: "fixture", PackageVersion: "1.0.0", Filename: "fixture.tgz", SHA256: "fixture-sha", Size: 1},
-		Receipts: []model.RunReceipt{completeReceipt("default")}, Incomplete: incompleteEvidence,
+		Artifact: model.ArtifactReceipt{PackageName: "fixture", PackageVersion: "1.0.0", Filename: "fixture.tgz", SHA256: canonical.SHA256String("fixture artifact"), Size: 1},
+		Receipts: receipts, Incomplete: incompleteEvidence,
 		Comparison: model.ComparisonResult{Findings: findings, AllowedDifferences: []model.AllowedDifference{}},
 	}
 }
 
+func ensureFindingProbe(finding model.Finding, receipts []model.RunReceipt) {
+	exit := 0
+	for index := range receipts {
+		if probeForID(receipts[index].Probes, finding.Probe) != nil {
+			continue
+		}
+		receipts[index].Probes = append(receipts[index].Probes, model.ProbeReceipt{
+			ID: finding.Probe, Argv: []string{}, ExitCode: &exit,
+			StdoutSHA256: canonical.SHA256String(""), StderrSHA256: canonical.SHA256String(""),
+		})
+	}
+}
+
+func applyFindingDifference(finding *model.Finding, receipts []model.RunReceipt) {
+	if len(finding.Profiles) != 2 {
+		return
+	}
+	left := receiptForProfile(receipts, finding.Profiles[0])
+	right := receiptForProfile(receipts, finding.Profiles[1])
+	if left == nil || right == nil {
+		return
+	}
+	leftProbe := probeForID(left.Probes, finding.Probe)
+	rightProbe := probeForID(right.Probes, finding.Probe)
+	if leftProbe == nil || rightProbe == nil {
+		return
+	}
+	switch finding.Field {
+	case "exit":
+		exit := 1
+		rightProbe.ExitCode = &exit
+	case "stdout":
+		rightProbe.Stdout = "changed:" + finding.Probe
+		rightProbe.StdoutSHA256 = canonical.SHA256String(rightProbe.Stdout)
+		finding.Digests = map[string]string{left.Profile: leftProbe.StdoutSHA256, right.Profile: rightProbe.StdoutSHA256}
+	case "stderr":
+		rightProbe.Stderr = "changed:" + finding.Probe
+		rightProbe.StderrSHA256 = canonical.SHA256String(rightProbe.Stderr)
+		finding.Digests = map[string]string{left.Profile: leftProbe.StderrSHA256, right.Profile: rightProbe.StderrSHA256}
+	case "runtime":
+		right.Runtime.BinName += "-changed"
+		updated, err := runtimeidentity.Create(right.Runtime)
+		if err != nil {
+			panic(err)
+		}
+		right.Runtime = updated
+		finding.Digests = map[string]string{left.Profile: left.Runtime.SHA256, right.Profile: right.Runtime.SHA256}
+	}
+}
+
+func receiptForProfile(receipts []model.RunReceipt, profile string) *model.RunReceipt {
+	for index := range receipts {
+		if receipts[index].Profile == profile {
+			return &receipts[index]
+		}
+	}
+	return nil
+}
+
+func probeForID(probes []model.ProbeReceipt, id string) *model.ProbeReceipt {
+	for index := range probes {
+		if probes[index].ID == id {
+			return &probes[index]
+		}
+	}
+	return nil
+}
+
 func completeReceipt(profile string) model.RunReceipt {
+	runtime, err := runtimeidentity.Create(model.RuntimeIdentity{
+		Kind: "installed", PackageName: "fixture", PackageVersion: "1.0.0", BinName: "fixture",
+		ExecutablePath: "node_modules/.bin/fixture", ExecutableRealPath: "node_modules/fixture/bin.js",
+		OptionalDependencies: []model.OptionalDependencyReceipt{},
+	})
+	if err != nil {
+		panic(err)
+	}
+	exit := 0
+	probes := []model.ProbeReceipt{
+		{ID: "help", Argv: []string{"--help"}, ExitCode: &exit, StdoutSHA256: canonical.SHA256String(""), StderrSHA256: canonical.SHA256String("")},
+		{ID: "version", Argv: []string{"--version"}, ExitCode: &exit, StdoutSHA256: canonical.SHA256String(""), StderrSHA256: canonical.SHA256String("")},
+	}
 	return model.RunReceipt{
 		Subject: "installed", Profile: profile, InstallArgs: []string{},
 		Environment: model.EnvironmentReceipt{Platform: "darwin", Arch: "arm64", Node: "v20.0.0", NPM: "10.0.0"},
-		Runtime: model.RuntimeIdentity{
-			Kind: "installed", PackageName: "fixture", PackageVersion: "1.0.0", BinName: "fixture",
-			ExecutablePath: "node_modules/.bin/fixture", ExecutableRealPath: "node_modules/fixture/bin.js",
-			OptionalDependencies: []model.OptionalDependencyReceipt{}, Canonical: "runtime", SHA256: "runtime-sha",
-		},
-		Probes: []model.ProbeReceipt{},
+		Runtime:     runtime,
+		Probes:      probes,
 	}
 }
 
