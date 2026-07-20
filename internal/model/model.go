@@ -127,6 +127,7 @@ type RunReceipt struct {
 }
 
 type IncompleteEvidence struct {
+	ID      string `json:"id"`
 	Code    string `json:"code"`
 	Profile string `json:"profile"`
 	Stage   string `json:"stage"`
@@ -136,10 +137,12 @@ type IncompleteEvidence struct {
 }
 
 type Finding struct {
+	ID       string            `json:"id"`
 	Code     string            `json:"code"`
 	Probe    string            `json:"probe"`
 	Field    string            `json:"field"`
 	Profiles []string          `json:"profiles"`
+	Locator  string            `json:"locator"`
 	Message  string            `json:"message"`
 	Expected any               `json:"expected,omitempty"`
 	Actual   any               `json:"actual,omitempty"`
@@ -171,13 +174,14 @@ type ToolReceipt struct {
 }
 
 type VerificationReport struct {
-	SchemaVersion int                  `json:"schemaVersion"`
-	Tool          ToolReceipt          `json:"tool"`
-	Target        string               `json:"target"`
-	Status        string               `json:"status"`
-	ExitCode      int                  `json:"exitCode"`
-	Artifact      ArtifactReceipt      `json:"artifact"`
-	Receipts      []RunReceipt         `json:"receipts"`
-	Incomplete    []IncompleteEvidence `json:"incomplete"`
-	Comparison    ComparisonResult     `json:"comparison"`
+	SchemaVersion   int                  `json:"schemaVersion"`
+	IdentityVersion int                  `json:"identityVersion"`
+	Tool            ToolReceipt          `json:"tool"`
+	Target          string               `json:"target"`
+	Status          string               `json:"status"`
+	ExitCode        int                  `json:"exitCode"`
+	Artifact        ArtifactReceipt      `json:"artifact"`
+	Receipts        []RunReceipt         `json:"receipts"`
+	Incomplete      []IncompleteEvidence `json:"incomplete"`
+	Comparison      ComparisonResult     `json:"comparison"`
 }

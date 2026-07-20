@@ -2,6 +2,8 @@
 
 These files are version-pinned executable evidence, not default unit tests.
 
+The corpus ledger requires report `schemaVersion: 2` and `identityVersion: 1`; every emitted finding or incomplete-evidence entry is assigned a stable semantic ID before JSON output.
+
 | Contract | Expected exit | Purpose |
 |---|---:|---|
 | `maximus.json` | `1` | Detect help, runtime, and version-exit drift even though both profiles execute |

@@ -30,6 +30,15 @@ Machine-readable output:
   --format json
 ```
 
+Compare two schema-v2 reports by stable evidence identity:
+
+```bash
+./build/theseus diff before.json after.json --format text
+./build/theseus diff before.json after.json --format json
+```
+
+`diff` classifies evidence as `introduced`, `resolved`, or `persisted`. It exits `1` only when the after report introduces evidence, `0` when it does not, and `2` when either input is malformed or does not satisfy the schema/identity contract.
+
 ## Contract
 
 ```json
@@ -111,9 +120,9 @@ Exit deltas use exact `from` and `to` integers. Allowing one field never suppres
 
 | Exit | Meaning |
 |---:|---|
-| `0` | All declared contracts hold; exact allowed deltas may be present |
-| `1` | Behavior drift or expectation failure |
-| `2` | Contract, pack, install, bin resolution, or probe evidence is incomplete |
+| `0` | Verify: all contracts hold. Diff: no evidence was introduced |
+| `1` | Verify: behavior drift. Diff: evidence was introduced |
+| `2` | Input/schema/contract, pack, install, bin resolution, or probe evidence is incomplete |
 
 Stable finding families:
 
@@ -125,7 +134,9 @@ Stable finding families:
 
 ## Evidence captured
 
-Each JSON report binds results to artifact SHA-256/size, package identity, OS/architecture, Node/npm, profile/install arguments, selected executable, package-level optional dependencies, normalized output digests, exit/signal/timeout, findings, and exact allowed deltas. `durationMs` is recorded but is not a parity field.
+Each JSON report uses `schemaVersion: 2` and `identityVersion: 1`. Every finding and incomplete-evidence entry has a deterministic `ths:v1:<sha256>` ID derived only from semantic identity fields: code, probe, field or stage, canonicalized profiles, and a semantic locator. Messages, expected/actual values, output digests, stderr, and timing are deliberately excluded so presentation or observed-value changes do not break lifecycle tracking.
+
+Reports also bind results to artifact SHA-256/size, package identity, OS/architecture, Node/npm, profile/install arguments, selected executable, package-level optional dependencies, normalized output digests, exit/signal/timeout, findings, and exact allowed deltas. `durationMs` is recorded but is not a parity field. `diff` accepts only complete schema-v2/identity-v1 reports and rejects schema v1, unknown fields, duplicate IDs, malformed JSON, and IDs that do not match their semantic fields.
 
 ## Corpus
 
@@ -147,8 +158,8 @@ Not in v0.1: security/trust scoring, claims extrapolated from one host, SARIF, r
 
 ```bash
 gofmt -w cmd internal
-go test ./...
-go test -race ./...
+go test -count=1 ./...
+go test -race -count=1 ./...
 go vet ./...
 go build -trimpath -o build/theseus ./cmd/theseus
 go run ./cmd/corpus

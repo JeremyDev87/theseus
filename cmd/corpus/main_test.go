@@ -34,10 +34,11 @@ func TestCorpusCasesIncludePublicOptionalNativeKillGate(t *testing.T) {
 func TestValidateCorpusResultChecksCompleteLedger(t *testing.T) {
 	item := corpusCase{Name: "fixture", ExpectedExit: 1, ExpectedStatus: "drift", ExpectedFindings: []string{"THS-PARITY-001", "THS-RUNTIME-001"}}
 	report := model.VerificationReport{
-		SchemaVersion: 1,
-		Tool:          model.ToolReceipt{Name: "theseus", Version: "0.1.0"},
-		Status:        "drift",
-		ExitCode:      1,
+		SchemaVersion:   2,
+		IdentityVersion: 1,
+		Tool:            model.ToolReceipt{Name: "theseus", Version: "0.1.0"},
+		Status:          "drift",
+		ExitCode:        1,
 	}
 	if err := validateCorpusResult(item, 1, report, []string{"THS-PARITY-001", "THS-RUNTIME-001"}); err != nil {
 		t.Fatalf("valid ledger rejected: %v", err)
@@ -51,7 +52,8 @@ func TestValidateCorpusResultChecksCompleteLedger(t *testing.T) {
 		want   string
 	}{
 		{name: "process exit", exit: 2, report: report, codes: item.ExpectedFindings, want: "exit mismatch"},
-		{name: "schema", exit: 1, report: withSchema(report, 2), codes: item.ExpectedFindings, want: "schema mismatch"},
+		{name: "schema", exit: 1, report: withSchema(report, 1), codes: item.ExpectedFindings, want: "schema mismatch"},
+		{name: "identity", exit: 1, report: withIdentity(report, 0), codes: item.ExpectedFindings, want: "schema mismatch"},
 		{name: "tool", exit: 1, report: withTool(report, "other", "0.1.0"), codes: item.ExpectedFindings, want: "tool mismatch"},
 		{name: "status", exit: 1, report: withStatus(report, "pass"), codes: item.ExpectedFindings, want: "status mismatch"},
 		{name: "finding order", exit: 1, report: report, codes: []string{"THS-RUNTIME-001", "THS-PARITY-001"}, want: "finding order mismatch"},
@@ -68,6 +70,11 @@ func TestValidateCorpusResultChecksCompleteLedger(t *testing.T) {
 
 func withSchema(report model.VerificationReport, schema int) model.VerificationReport {
 	report.SchemaVersion = schema
+	return report
+}
+
+func withIdentity(report model.VerificationReport, identity int) model.VerificationReport {
+	report.IdentityVersion = identity
 	return report
 }
 

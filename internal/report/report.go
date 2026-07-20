@@ -4,27 +4,41 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/JeremyDev87/theseus/internal/evidenceid"
 	"github.com/JeremyDev87/theseus/internal/model"
 	"github.com/JeremyDev87/theseus/internal/version"
 )
 
 func Create(target string, result model.VerificationResult) model.VerificationReport {
+	receipts := append([]model.RunReceipt{}, result.Receipts...)
+	incomplete := append([]model.IncompleteEvidence{}, result.Incomplete...)
+	for index := range incomplete {
+		incomplete[index].ID = evidenceid.Incomplete(incomplete[index])
+	}
+	findings := append([]model.Finding{}, result.Comparison.Findings...)
+	for index := range findings {
+		findings[index].ID = evidenceid.Finding(findings[index])
+	}
+	result.Comparison.Findings = findings
+	result.Comparison.AllowedDifferences = append([]model.AllowedDifference{}, result.Comparison.AllowedDifferences...)
+
 	status, exitCode := "pass", 0
-	if len(result.Incomplete) > 0 {
+	if len(incomplete) > 0 {
 		status, exitCode = "incomplete", 2
 	} else if len(result.Comparison.Findings) > 0 {
 		status, exitCode = "drift", 1
 	}
 	return model.VerificationReport{
-		SchemaVersion: 1,
-		Tool:          model.ToolReceipt{Name: "theseus", Version: version.Version},
-		Target:        target,
-		Status:        status,
-		ExitCode:      exitCode,
-		Artifact:      result.Artifact,
-		Receipts:      result.Receipts,
-		Incomplete:    result.Incomplete,
-		Comparison:    result.Comparison,
+		SchemaVersion:   2,
+		IdentityVersion: evidenceid.Version,
+		Tool:            model.ToolReceipt{Name: "theseus", Version: version.Version},
+		Target:          target,
+		Status:          status,
+		ExitCode:        exitCode,
+		Artifact:        result.Artifact,
+		Receipts:        receipts,
+		Incomplete:      incomplete,
+		Comparison:      result.Comparison,
 	}
 }
 

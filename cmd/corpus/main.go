@@ -89,8 +89,8 @@ func validateCorpusResult(item corpusCase, processExit int, report model.Verific
 	if processExit != item.ExpectedExit || report.ExitCode != item.ExpectedExit {
 		return fmt.Errorf("exit mismatch: process=%d report=%d expected=%d", processExit, report.ExitCode, item.ExpectedExit)
 	}
-	if report.SchemaVersion != 1 {
-		return fmt.Errorf("schema mismatch: got %d expected 1", report.SchemaVersion)
+	if report.SchemaVersion != 2 || report.IdentityVersion != 1 {
+		return fmt.Errorf("schema mismatch: got schema=%d identity=%d expected schema=2 identity=1", report.SchemaVersion, report.IdentityVersion)
 	}
 	if report.Tool.Name != "theseus" || report.Tool.Version != version.Version {
 		return fmt.Errorf("tool mismatch: got %s@%s expected theseus@%s", report.Tool.Name, report.Tool.Version, version.Version)

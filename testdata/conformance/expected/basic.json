@@ -1,27 +1,33 @@
 {
   "findings": [
     {
+      "id": "ths:v1:bc79444a6fa424953070394d90169d87451f5df9712cadfcd5bc2e8c32d640b5",
       "code": "THS-EXPECT-001",
       "probe": "help",
       "field": "exit",
       "profiles": ["noOptional"],
+      "locator": "expect:exit",
       "message": "noOptional/help: expected exit 0, observed 1",
       "expected": 0,
       "actual": 1
     },
     {
+      "id": "ths:v1:fdfb78a150f27198bebe0db6764b3ab82028134d27853395a5b1f6b6febd5c76",
       "code": "THS-PARITY-001",
       "probe": "help",
       "field": "exit",
       "profiles": ["default", "noOptional"],
+      "locator": "compare:exit",
       "message": "help: exit differs between default and noOptional",
       "actual": { "default": 0, "noOptional": 1 }
     },
     {
+      "id": "ths:v1:2fad9c15c3568d44ed8e8dc26ea2a55c5a774e19486be6f72899eca911f51405",
       "code": "THS-RUNTIME-001",
       "probe": "help",
       "field": "runtime",
       "profiles": ["default", "noOptional"],
+      "locator": "compare:runtime",
       "message": "help: runtime differs between default and noOptional",
       "actual": { "default": "runtime-default", "noOptional": "runtime-no-optional" },
       "digests": { "default": "runtime-default-sha", "noOptional": "runtime-no-optional-sha" }

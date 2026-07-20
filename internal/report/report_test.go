@@ -14,8 +14,11 @@ func TestExitSemanticsAndIncompletePrecedence(t *testing.T) {
 		Comparison: model.ComparisonResult{Findings: []model.Finding{}, AllowedDifferences: []model.AllowedDifference{}},
 	}
 	pass := Create("fixture", base)
-	if pass.Status != "pass" || pass.ExitCode != 0 || pass.SchemaVersion != 1 || pass.Tool.Name != "theseus" || pass.Tool.Version != "0.1.0" {
+	if pass.Status != "pass" || pass.ExitCode != 0 || pass.SchemaVersion != 2 || pass.IdentityVersion != 1 || pass.Tool.Name != "theseus" || pass.Tool.Version != "0.1.0" {
 		t.Fatalf("pass report=%#v", pass)
+	}
+	if pass.Receipts == nil || pass.Incomplete == nil || pass.Comparison.Findings == nil || pass.Comparison.AllowedDifferences == nil {
+		t.Fatalf("schema-v2 evidence arrays must encode as arrays, not null: %#v", pass)
 	}
 
 	driftResult := base
@@ -24,12 +27,18 @@ func TestExitSemanticsAndIncompletePrecedence(t *testing.T) {
 	if drift.Status != "drift" || drift.ExitCode != 1 {
 		t.Fatalf("drift report=%#v", drift)
 	}
+	if drift.Comparison.Findings[0].ID == "" {
+		t.Fatalf("drift finding must have an identity: %#v", drift.Comparison.Findings[0])
+	}
 
 	incompleteResult := driftResult
 	incompleteResult.Incomplete = []model.IncompleteEvidence{{Code: "THS-INCOMPLETE-001", Profile: "default", Stage: "probe", Probe: "help", Message: "timed out"}}
 	incomplete := Create("fixture", incompleteResult)
 	if incomplete.Status != "incomplete" || incomplete.ExitCode != 2 {
 		t.Fatalf("incomplete must outrank drift: %#v", incomplete)
+	}
+	if incomplete.Incomplete[0].ID == "" {
+		t.Fatalf("incomplete evidence must have an identity: %#v", incomplete.Incomplete[0])
 	}
 }
 
