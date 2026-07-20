@@ -1,44 +1,164 @@
 {
   "schemaVersion": 2,
   "identityVersion": 1,
-  "tool": { "name": "theseus", "version": "0.1.0" },
-  "target": "fixture-after",
+  "tool": {
+    "name": "theseus",
+    "version": "0.1.0"
+  },
+  "target": "fixture",
+  "artifact": {
+    "packageName": "fixture",
+    "packageVersion": "1.0.0",
+    "filename": "fixture.tgz",
+    "sha256": "70ea06053509b85e86aaa7ae9a844c489068f32741581cb6b773af42e272d088",
+    "size": 1
+  },
   "status": "drift",
   "exitCode": 1,
-  "artifact": { "packageName": "fixture", "packageVersion": "1.0.0", "filename": "fixture.tgz", "sha256": "after-sha", "size": 1 },
-  "receipts": [{
-    "subject": "installed",
-    "profile": "default",
-    "installArgs": [],
-    "environment": { "platform": "darwin", "arch": "arm64", "node": "v20.0.0", "npm": "10.0.0" },
-    "runtime": {
-      "kind": "installed", "packageName": "fixture", "packageVersion": "1.0.0",
-      "binName": "fixture", "executablePath": "node_modules/.bin/fixture",
-      "executableRealPath": "node_modules/fixture/bin.js", "optionalDependencies": [],
-      "canonical": "runtime", "sha256": "runtime-sha"
+  "receipts": [
+    {
+      "subject": "installed",
+      "profile": "default",
+      "installArgs": [],
+      "environment": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "node": "v20.0.0",
+        "npm": "10.0.0"
+      },
+      "runtime": {
+        "kind": "installed",
+        "packageName": "fixture",
+        "packageVersion": "1.0.0",
+        "binName": "fixture",
+        "executablePath": "node_modules/.bin/fixture",
+        "executableRealPath": "node_modules/fixture/bin.js",
+        "optionalDependencies": [],
+        "canonical": "{\"binName\":\"fixture\",\"executablePath\":\"node_modules/.bin/fixture\",\"executableRealPath\":\"node_modules/fixture/bin.js\",\"kind\":\"installed\",\"optionalDependencies\":[],\"packageName\":\"fixture\",\"packageVersion\":\"1.0.0\"}",
+        "sha256": "ab699f19d7ac7c3fc22de1a21311dc227a983bf93bc170ac1ec0b45e773f3ae9"
+      },
+      "probes": [
+        {
+          "id": "help",
+          "argv": [
+            "--help"
+          ],
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "stdout": "",
+          "stderr": "",
+          "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 0
+        },
+        {
+          "id": "version",
+          "argv": [
+            "--version"
+          ],
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "stdout": "",
+          "stderr": "",
+          "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 0
+        }
+      ]
     },
-    "probes": []
-  }],
+    {
+      "subject": "installed",
+      "profile": "noOptional",
+      "installArgs": [],
+      "environment": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "node": "v20.0.0",
+        "npm": "10.0.0"
+      },
+      "runtime": {
+        "kind": "installed",
+        "packageName": "fixture",
+        "packageVersion": "1.0.0",
+        "binName": "fixture",
+        "executablePath": "node_modules/.bin/fixture",
+        "executableRealPath": "node_modules/fixture/bin.js",
+        "optionalDependencies": [],
+        "canonical": "{\"binName\":\"fixture\",\"executablePath\":\"node_modules/.bin/fixture\",\"executableRealPath\":\"node_modules/fixture/bin.js\",\"kind\":\"installed\",\"optionalDependencies\":[],\"packageName\":\"fixture\",\"packageVersion\":\"1.0.0\"}",
+        "sha256": "ab699f19d7ac7c3fc22de1a21311dc227a983bf93bc170ac1ec0b45e773f3ae9"
+      },
+      "probes": [
+        {
+          "id": "help",
+          "argv": [
+            "--help"
+          ],
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "stdout": "",
+          "stderr": "",
+          "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 0
+        },
+        {
+          "id": "version",
+          "argv": [
+            "--version"
+          ],
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "stdout": "changed:version",
+          "stderr": "",
+          "stdoutSha256": "b0ad0dd441dfee71485fde34efaedb86f7527e15b14924cd568e24e9b6349c95",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 0
+        }
+      ]
+    }
+  ],
   "incomplete": [],
   "comparison": {
     "findings": [
-      {
-        "id": "ths:v1:44b5ab81d241e99838cd022df1f1e80dd910d9e46bc35d5fd6dc8b86c4ce4932",
-        "code": "THS-PARITY-002",
-        "probe": "version",
-        "field": "stdout",
-        "profiles": ["default", "noOptional"],
-        "locator": "compare:stdout",
-        "message": "new stdout drift"
-      },
       {
         "id": "ths:v1:fdfb78a150f27198bebe0db6764b3ab82028134d27853395a5b1f6b6febd5c76",
         "code": "THS-PARITY-001",
         "probe": "help",
         "field": "exit",
-        "profiles": ["default", "noOptional"],
+        "profiles": [
+          "default",
+          "noOptional"
+        ],
         "locator": "compare:exit",
-        "message": "after wording"
+        "message": "help exit differs",
+        "actual": {
+          "default": 0,
+          "noOptional": 1
+        }
+      },
+      {
+        "id": "ths:v1:44b5ab81d241e99838cd022df1f1e80dd910d9e46bc35d5fd6dc8b86c4ce4932",
+        "code": "THS-PARITY-002",
+        "probe": "version",
+        "field": "stdout",
+        "profiles": [
+          "default",
+          "noOptional"
+        ],
+        "locator": "compare:stdout",
+        "message": "version stdout differs",
+        "actual": {
+          "default": "",
+          "noOptional": "changed:version"
+        },
+        "digests": {
+          "default": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "noOptional": "b0ad0dd441dfee71485fde34efaedb86f7527e15b14924cd568e24e9b6349c95"
+        }
       }
     ],
     "allowedDifferences": []
