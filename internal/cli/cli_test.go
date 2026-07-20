@@ -130,6 +130,48 @@ func TestDiffRejectsSchemaV1AndMalformedReports(t *testing.T) {
 	}
 }
 
+func TestDiffRejectsDuplicateKeysAndTimedOutPassReport(t *testing.T) {
+	valid := cliReport(nil)
+	validJSON, err := json.Marshal(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	timedOut := cliReport(nil)
+	timedOut.Receipts[0].Probes = []model.ProbeReceipt{{
+		ID: "help", Argv: []string{"--help"}, TimedOut: true,
+		StdoutSHA256: "stdout-sha", StderrSHA256: "stderr-sha",
+	}}
+	timedOutJSON, err := json.Marshal(timedOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name string
+		data []byte
+		want string
+	}{
+		{name: "duplicate root key", data: []byte(strings.Replace(string(validJSON), `"schemaVersion":2`, `"schemaVersion":1,"schemaVersion":2`, 1)), want: "duplicate JSON object key"},
+		{name: "duplicate nested key", data: []byte(strings.Replace(string(validJSON), `"name":"theseus"`, `"name":"other","name":"theseus"`, 1)), want: "duplicate JSON object key"},
+		{name: "timed out pass", data: timedOutJSON, want: "timed out probe requires matching incomplete evidence"},
+	}
+
+	validPath := writeCLIReport(t, valid)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "invalid.json")
+			if err := os.WriteFile(path, test.data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			exit, out, errout := invoke("diff", path, validPath, "--format", "json")
+			if exit != 2 || errout != "" || !strings.Contains(out, test.want) {
+				t.Fatalf("exit=%d stdout=%q stderr=%q want=%q", exit, out, errout, test.want)
+			}
+		})
+	}
+}
+
 func cliReport(findings []model.Finding) model.VerificationReport {
 	if findings == nil {
 		findings = []model.Finding{}
