@@ -225,6 +225,12 @@ func TestParseRejectsReceiptSelfIntegrityTampering(t *testing.T) {
 		{name: "finding digest reference", mutate: func(report *model.VerificationReport) {
 			report.Comparison.Findings[0].Digests["default"] = strings.Repeat("0", 64)
 		}, want: "finding digest does not match receipt"},
+		{name: "finding actual payload", mutate: func(report *model.VerificationReport) {
+			report.Comparison.Findings[0].Actual = map[string]any{"default": "forged", "noOptional": "forged"}
+		}, want: "actual payload does not match receipts"},
+		{name: "finding parity expected payload", mutate: func(report *model.VerificationReport) {
+			report.Comparison.Findings[0].Expected = "forged"
+		}, want: "compare finding must not contain expected payload"},
 		{name: "allowed difference unknown profile", mutate: func(report *model.VerificationReport) {
 			report.Comparison.AllowedDifferences[0].Profiles[1] = "ghost"
 		}, want: "references unknown profile"},
@@ -265,6 +271,29 @@ func TestParseRejectsReceiptSelfIntegrityTampering(t *testing.T) {
 	}
 }
 
+func TestParseRejectsAllowedDifferenceProfileArrayLength(t *testing.T) {
+	report := allowedDifferenceReport()
+	data, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needle := `"profiles":["default","noOptional"]`
+	for name, replacement := range map[string]string{
+		"one":   `"profiles":["default"]`,
+		"three": `"profiles":["default","noOptional","ghost"]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			mutated := strings.Replace(string(data), needle, replacement, 1)
+			if mutated == string(data) {
+				t.Fatal("allowed difference profile array was not mutated")
+			}
+			if _, err := Parse([]byte(mutated)); err == nil || !strings.Contains(err.Error(), "profiles must contain exactly two entries") {
+				t.Fatalf("error=%v", err)
+			}
+		})
+	}
+}
+
 func TestParseAcceptsReceiptBoundFindingAndAllowedDifference(t *testing.T) {
 	for name, report := range map[string]model.VerificationReport{
 		"finding":            verificationReport([]model.Finding{finding("THS-PARITY-002", "help", "stdout", "compare:stdout", "stdout drift")}, nil),
@@ -277,6 +306,39 @@ func TestParseAcceptsReceiptBoundFindingAndAllowedDifference(t *testing.T) {
 			}
 			if _, err := Parse(data); err != nil {
 				t.Fatalf("valid receipt-bound report rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestParseAcceptsReceiptBoundExpectationFindings(t *testing.T) {
+	exitFinding := model.Finding{Code: "THS-EXPECT-001", Probe: "help", Field: "exit", Profiles: []string{"default"}, Locator: "expect:exit", Message: "exit expectation", Expected: 1, Actual: 0}
+	exitFinding.ID = evidenceid.Finding(exitFinding)
+
+	invalidJSONFinding := model.Finding{Code: "THS-EXPECT-002", Probe: "help", Field: "stdoutJson", Profiles: []string{"default"}, Locator: "expect:stdoutJson:document", Message: "invalid JSON"}
+	invalidJSONFinding.ID = evidenceid.Finding(invalidJSONFinding)
+	invalidJSONReport := verificationReport([]model.Finding{invalidJSONFinding}, nil)
+	invalidJSONReport.Receipts[0].Probes[0].Stdout = "not-json"
+	invalidJSONReport.Receipts[0].Probes[0].StdoutSHA256 = canonical.SHA256String("not-json")
+
+	typeFinding := model.Finding{Code: "THS-EXPECT-002", Probe: "help", Field: "stdoutJson", Profiles: []string{"default"}, Locator: "expect:stdoutJson:count:number", Message: "JSON type expectation", Expected: "number", Actual: "string"}
+	typeFinding.ID = evidenceid.Finding(typeFinding)
+	typeReport := verificationReport([]model.Finding{typeFinding}, nil)
+	typeReport.Receipts[0].Probes[0].Stdout = `{"count":"wrong"}`
+	typeReport.Receipts[0].Probes[0].StdoutSHA256 = canonical.SHA256String(typeReport.Receipts[0].Probes[0].Stdout)
+
+	for name, report := range map[string]model.VerificationReport{
+		"exit":               verificationReport([]model.Finding{exitFinding}, nil),
+		"invalid JSON":       invalidJSONReport,
+		"JSON type mismatch": typeReport,
+	} {
+		t.Run(name, func(t *testing.T) {
+			data, err := json.Marshal(report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Parse(data); err != nil {
+				t.Fatalf("producer-valid expectation finding rejected: %v", err)
 			}
 		})
 	}
@@ -426,14 +488,17 @@ func applyFindingDifference(finding *model.Finding, receipts []model.RunReceipt)
 	case "exit":
 		exit := 1
 		rightProbe.ExitCode = &exit
+		finding.Actual = map[string]any{left.Profile: *leftProbe.ExitCode, right.Profile: *rightProbe.ExitCode}
 	case "stdout":
 		rightProbe.Stdout = "changed:" + finding.Probe
 		rightProbe.StdoutSHA256 = canonical.SHA256String(rightProbe.Stdout)
 		finding.Digests = map[string]string{left.Profile: leftProbe.StdoutSHA256, right.Profile: rightProbe.StdoutSHA256}
+		finding.Actual = map[string]any{left.Profile: leftProbe.Stdout, right.Profile: rightProbe.Stdout}
 	case "stderr":
 		rightProbe.Stderr = "changed:" + finding.Probe
 		rightProbe.StderrSHA256 = canonical.SHA256String(rightProbe.Stderr)
 		finding.Digests = map[string]string{left.Profile: leftProbe.StderrSHA256, right.Profile: rightProbe.StderrSHA256}
+		finding.Actual = map[string]any{left.Profile: leftProbe.Stderr, right.Profile: rightProbe.Stderr}
 	case "runtime":
 		right.Runtime.BinName += "-changed"
 		updated, err := runtimeidentity.Create(right.Runtime)
@@ -442,6 +507,7 @@ func applyFindingDifference(finding *model.Finding, receipts []model.RunReceipt)
 		}
 		right.Runtime = updated
 		finding.Digests = map[string]string{left.Profile: left.Runtime.SHA256, right.Profile: right.Runtime.SHA256}
+		finding.Actual = map[string]any{left.Profile: left.Runtime.Canonical, right.Profile: right.Runtime.Canonical}
 	}
 }
 

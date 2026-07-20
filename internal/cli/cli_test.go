@@ -156,6 +156,22 @@ func TestDiffRejectsDuplicateKeysAndTimedOutPassReport(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	findingActual := cliReport([]model.Finding{cliFinding("THS-PARITY-001", "help", "exit", "compare:exit", "exit drift")})
+	findingActual.Comparison.Findings[0].Actual = map[string]any{"default": 999, "noOptional": 999}
+	findingActualJSON, err := json.Marshal(findingActual)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	findingExpected := cliReport([]model.Finding{cliFinding("THS-PARITY-001", "help", "exit", "compare:exit", "exit drift")})
+	findingExpected.Comparison.Findings[0].Expected = "forged"
+	findingExpectedJSON, err := json.Marshal(findingExpected)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	allowedExtraProfileJSON := []byte(strings.Replace(string(validJSON), `"allowedDifferences":[]`, `"allowedDifferences":[{"probe":"help","field":"stdout","profiles":["default","noOptional","ghost"],"reason":"fixture"}]`, 1))
+
 	tests := []struct {
 		name string
 		data []byte
@@ -165,6 +181,9 @@ func TestDiffRejectsDuplicateKeysAndTimedOutPassReport(t *testing.T) {
 		{name: "duplicate nested key", data: []byte(strings.Replace(string(validJSON), `"name":"theseus"`, `"name":"other","name":"theseus"`, 1)), want: "duplicate JSON object key"},
 		{name: "timed out pass", data: timedOutJSON, want: "timed out probe requires matching incomplete evidence"},
 		{name: "tampered probe digest", data: tamperedJSON, want: "stdoutSha256 mismatch"},
+		{name: "tampered finding actual", data: findingActualJSON, want: "actual payload does not match receipts"},
+		{name: "tampered parity expected", data: findingExpectedJSON, want: "compare finding must not contain expected payload"},
+		{name: "allowed difference extra profile", data: allowedExtraProfileJSON, want: "profiles must contain exactly two entries"},
 	}
 
 	validPath := writeCLIReport(t, valid)
@@ -236,6 +255,7 @@ func applyCLIFindingDifference(finding *model.Finding, receipts []model.RunRecei
 		if finding.Field == "exit" {
 			exit := 1
 			right.Probes[index].ExitCode = &exit
+			finding.Actual = map[string]any{"default": *receipts[0].Probes[index].ExitCode, "noOptional": *right.Probes[index].ExitCode}
 		} else if finding.Field == "stdout" {
 			right.Probes[index].Stdout = "changed:" + finding.Probe
 			right.Probes[index].StdoutSHA256 = canonical.SHA256String(right.Probes[index].Stdout)
@@ -243,6 +263,7 @@ func applyCLIFindingDifference(finding *model.Finding, receipts []model.RunRecei
 				"default":    receipts[0].Probes[index].StdoutSHA256,
 				"noOptional": right.Probes[index].StdoutSHA256,
 			}
+			finding.Actual = map[string]any{"default": receipts[0].Probes[index].Stdout, "noOptional": right.Probes[index].Stdout}
 		}
 		return
 	}

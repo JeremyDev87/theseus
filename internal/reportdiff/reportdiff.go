@@ -7,6 +7,7 @@ import (
 	"io"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/JeremyDev87/theseus/internal/canonical"
@@ -58,6 +59,9 @@ type Result struct {
 
 func Parse(data []byte) (model.VerificationReport, error) {
 	if err := rejectDuplicateJSONKeys(data); err != nil {
+		return model.VerificationReport{}, fmt.Errorf("invalid report JSON: %w", err)
+	}
+	if err := validateWireShapes(data); err != nil {
 		return model.VerificationReport{}, fmt.Errorf("invalid report JSON: %w", err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -378,6 +382,9 @@ func validateFinding(finding model.Finding, index int, receipts map[string]model
 			return fmt.Errorf("finding[%d] finding digest does not match receipt for profile %s", index, profile)
 		}
 	}
+	if err := validateFindingPayload(finding, index, receipts); err != nil {
+		return err
+	}
 	if len(finding.Profiles) == 2 && validCompareField(model.CompareField(finding.Field)) {
 		left, _ := receiptValue(receipts[finding.Profiles[0]], finding.Probe, model.CompareField(finding.Field))
 		right, _ := receiptValue(receipts[finding.Profiles[1]], finding.Probe, model.CompareField(finding.Field))
@@ -386,6 +393,238 @@ func validateFinding(finding model.Finding, index int, receipts map[string]model
 		}
 	}
 	return nil
+}
+
+func validateFindingPayload(finding model.Finding, index int, receipts map[string]model.RunReceipt) error {
+	if len(finding.Profiles) == 2 && validCompareField(model.CompareField(finding.Field)) {
+		wantCode := "THS-PARITY-002"
+		if finding.Field == string(model.FieldExit) {
+			wantCode = "THS-PARITY-001"
+		} else if finding.Field == string(model.FieldRuntime) {
+			wantCode = "THS-RUNTIME-001"
+		}
+		if finding.Code != wantCode || finding.Locator != "compare:"+finding.Field {
+			return fmt.Errorf("finding[%d] compare finding code or locator is inconsistent", index)
+		}
+		if finding.Expected != nil {
+			return fmt.Errorf("finding[%d] compare finding must not contain expected payload", index)
+		}
+		wantActual := map[string]any{}
+		for _, profile := range finding.Profiles {
+			value, ok := receiptActualValue(receipts[profile], finding.Probe, model.CompareField(finding.Field))
+			if !ok {
+				return fmt.Errorf("finding[%d] actual payload cannot be derived from receipts", index)
+			}
+			wantActual[profile] = value
+		}
+		if !canonicalValuesEqual(finding.Actual, wantActual) {
+			return fmt.Errorf("finding[%d] actual payload does not match receipts", index)
+		}
+		return nil
+	}
+
+	if finding.Code == "THS-EXPECT-001" {
+		if len(finding.Profiles) != 1 || finding.Field != string(model.FieldExit) || finding.Locator != "expect:exit" || len(finding.Digests) != 0 {
+			return fmt.Errorf("finding[%d] exit expectation shape is inconsistent", index)
+		}
+		wantActual, ok := receiptActualValue(receipts[finding.Profiles[0]], finding.Probe, model.FieldExit)
+		if !ok || !canonicalValuesEqual(finding.Actual, wantActual) {
+			return fmt.Errorf("finding[%d] actual payload does not match receipts", index)
+		}
+		wantExit, ok := integerJSONValue(finding.Expected)
+		if !ok {
+			return fmt.Errorf("finding[%d] exit expectation must contain an integer expected payload", index)
+		}
+		if actualExit, ok := integerJSONValue(wantActual); ok && actualExit == wantExit {
+			return fmt.Errorf("finding[%d] exit expectation does not describe a mismatch", index)
+		}
+		return nil
+	}
+
+	if finding.Code == "THS-EXPECT-002" {
+		return validateStdoutJSONFinding(finding, index, receipts)
+	}
+	return fmt.Errorf("finding[%d] has unsupported code, field, or profile count", index)
+}
+
+func receiptActualValue(receipt model.RunReceipt, probe string, field model.CompareField) (any, bool) {
+	value := probeByID(receipt, probe)
+	if value == nil {
+		return nil, false
+	}
+	switch field {
+	case model.FieldExit:
+		if value.ExitCode == nil {
+			return nil, true
+		}
+		return *value.ExitCode, true
+	case model.FieldStdout:
+		return value.Stdout, true
+	case model.FieldStderr:
+		return value.Stderr, true
+	case model.FieldRuntime:
+		return receipt.Runtime.Canonical, true
+	default:
+		return nil, false
+	}
+}
+
+func canonicalValuesEqual(left, right any) bool {
+	leftJSON, leftErr := canonical.Marshal(left)
+	rightJSON, rightErr := canonical.Marshal(right)
+	return leftErr == nil && rightErr == nil && leftJSON == rightJSON
+}
+
+func integerJSONValue(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case json.Number:
+		parsed, err := strconv.ParseInt(string(typed), 10, 64)
+		return parsed, err == nil
+	case float64:
+		parsed := int64(typed)
+		return parsed, float64(parsed) == typed
+	default:
+		return 0, false
+	}
+}
+
+func validateStdoutJSONFinding(finding model.Finding, index int, receipts map[string]model.RunReceipt) error {
+	if len(finding.Profiles) != 1 || finding.Field != "stdoutJson" || len(finding.Digests) != 0 {
+		return fmt.Errorf("finding[%d] stdout JSON expectation shape is inconsistent", index)
+	}
+	probe := probeByID(receipts[finding.Profiles[0]], finding.Probe)
+	if probe == nil {
+		return fmt.Errorf("finding[%d] stdout JSON probe is missing", index)
+	}
+	const prefix = "expect:stdoutJson:"
+	if !strings.HasPrefix(finding.Locator, prefix) {
+		return fmt.Errorf("finding[%d] stdout JSON locator is inconsistent", index)
+	}
+	detail := strings.TrimPrefix(finding.Locator, prefix)
+	if detail == "document" {
+		if json.Valid([]byte(probe.Stdout)) || finding.Expected != nil || finding.Actual != nil {
+			return fmt.Errorf("finding[%d] invalid JSON finding does not match receipt", index)
+		}
+		return nil
+	}
+	separator := strings.LastIndex(detail, ":")
+	if separator <= 0 || separator == len(detail)-1 || !json.Valid([]byte(probe.Stdout)) {
+		return fmt.Errorf("finding[%d] stdout JSON locator is inconsistent", index)
+	}
+	path, wantType := detail[:separator], detail[separator+1:]
+	if !validJSONType(wantType) || finding.Expected != wantType {
+		return fmt.Errorf("finding[%d] stdout JSON expected payload is inconsistent", index)
+	}
+	decoder := json.NewDecoder(strings.NewReader(probe.Stdout))
+	decoder.UseNumber()
+	var document any
+	if err := decoder.Decode(&document); err != nil {
+		return fmt.Errorf("finding[%d] stdout JSON receipt cannot be decoded", index)
+	}
+	value, found := findingJSONPath(document, path)
+	actualType := findingJSONType(value, found)
+	if finding.Actual != actualType {
+		return fmt.Errorf("finding[%d] actual payload does not match receipts", index)
+	}
+	if actualType == wantType {
+		return fmt.Errorf("finding[%d] stdout JSON expectation does not describe a mismatch", index)
+	}
+	return nil
+}
+
+func validJSONType(value string) bool {
+	switch value {
+	case "undefined", "null", "boolean", "number", "string", "array", "object":
+		return true
+	default:
+		return false
+	}
+}
+
+func findingJSONPath(value any, path string) (any, bool) {
+	segments := strings.Split(path, ".")
+	if strings.HasPrefix(path, "/") {
+		var ok bool
+		segments, ok = findingJSONPointer(path)
+		if !ok {
+			return nil, false
+		}
+	}
+	current := value
+	for _, segment := range segments {
+		switch typed := current.(type) {
+		case map[string]any:
+			var ok bool
+			current, ok = typed[segment]
+			if !ok {
+				return nil, false
+			}
+		case []any:
+			if segment == "length" {
+				current = json.Number(strconv.Itoa(len(typed)))
+				continue
+			}
+			index, err := strconv.Atoi(segment)
+			if err != nil || index < 0 || index >= len(typed) || (len(segment) > 1 && segment[0] == '0') {
+				return nil, false
+			}
+			current = typed[index]
+		default:
+			return nil, false
+		}
+	}
+	return current, true
+}
+
+func findingJSONPointer(path string) ([]string, bool) {
+	tokens := strings.Split(path[1:], "/")
+	for index, token := range tokens {
+		var builder strings.Builder
+		for offset := 0; offset < len(token); offset++ {
+			if token[offset] != '~' {
+				builder.WriteByte(token[offset])
+				continue
+			}
+			if offset+1 >= len(token) || (token[offset+1] != '0' && token[offset+1] != '1') {
+				return nil, false
+			}
+			offset++
+			if token[offset] == '0' {
+				builder.WriteByte('~')
+			} else {
+				builder.WriteByte('/')
+			}
+		}
+		tokens[index] = builder.String()
+	}
+	return tokens, true
+}
+
+func findingJSONType(value any, found bool) string {
+	if !found {
+		return "undefined"
+	}
+	if value == nil {
+		return "null"
+	}
+	switch value.(type) {
+	case bool:
+		return "boolean"
+	case float64, json.Number:
+		return "number"
+	case string:
+		return "string"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	default:
+		return "undefined"
+	}
 }
 
 func validateAllowedDifference(allowed model.AllowedDifference, index int, receipts map[string]model.RunReceipt) (string, error) {
@@ -487,6 +726,25 @@ func hasProbeIncomplete(incomplete []model.IncompleteEvidence, profile, probe st
 		}
 	}
 	return false
+}
+
+func validateWireShapes(data []byte) error {
+	var wire struct {
+		Comparison struct {
+			AllowedDifferences []struct {
+				Profiles []json.RawMessage `json:"profiles"`
+			} `json:"allowedDifferences"`
+		} `json:"comparison"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	for index, allowed := range wire.Comparison.AllowedDifferences {
+		if len(allowed.Profiles) != 2 {
+			return fmt.Errorf("allowedDifferences[%d] profiles must contain exactly two entries", index)
+		}
+	}
+	return nil
 }
 
 func rejectDuplicateJSONKeys(data []byte) error {
