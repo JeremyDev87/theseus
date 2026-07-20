@@ -17,6 +17,7 @@ import (
 	"github.com/JeremyDev87/theseus/internal/contract"
 	"github.com/JeremyDev87/theseus/internal/model"
 	processrun "github.com/JeremyDev87/theseus/internal/process"
+	"github.com/JeremyDev87/theseus/internal/runtimeidentity"
 )
 
 type preparedArtifact struct {
@@ -147,12 +148,13 @@ func runSource(config model.Contract, environment model.EnvironmentReceipt) (*mo
 	if err != nil {
 		realCWD = cwd
 	}
-	base := map[string]any{"kind": "source", "binName": filepath.Base(source.Command), "executablePath": source.Command, "executableRealPath": source.Command, "optionalDependencies": []model.OptionalDependencyReceipt{}}
-	canonicalValue, err := canonical.Marshal(base)
+	runtimeIdentity, err := runtimeidentity.Create(model.RuntimeIdentity{
+		Kind: "source", BinName: filepath.Base(source.Command), ExecutablePath: source.Command, ExecutableRealPath: source.Command,
+		OptionalDependencies: []model.OptionalDependencyReceipt{},
+	})
 	if err != nil {
 		return nil, []model.IncompleteEvidence{{Code: "THS-INCOMPLETE-001", Profile: "source", Stage: "probe", Message: err.Error()}}
 	}
-	runtimeIdentity := model.RuntimeIdentity{Kind: "source", BinName: filepath.Base(source.Command), ExecutablePath: source.Command, ExecutableRealPath: source.Command, OptionalDependencies: []model.OptionalDependencyReceipt{}, Canonical: canonicalValue, SHA256: canonical.SHA256String(canonicalValue)}
 	incomplete := []model.IncompleteEvidence{}
 	probes := runProbes(source.Command, source.Args, cwd, config, "source", &incomplete, []string{cwd, realCWD})
 	return &model.RunReceipt{Subject: "source", Profile: "source", InstallArgs: []string{}, Environment: environment, Runtime: runtimeIdentity, Probes: probes}, incomplete
@@ -208,12 +210,13 @@ func runProfile(profileName string, installArgs []string, artifact preparedArtif
 	executableRealPath, _ := filepath.Rel(projectRealPath, realExecutable)
 	executablePath = filepath.ToSlash(executablePath)
 	executableRealPath = filepath.ToSlash(executableRealPath)
-	base := map[string]any{"kind": "installed", "packageName": artifact.PackageName, "packageVersion": artifact.PackageVersion, "binName": binName, "executablePath": executablePath, "executableRealPath": executableRealPath, "optionalDependencies": optionalDependencies}
-	canonicalValue, err := canonical.Marshal(base)
+	runtimeIdentity, err := runtimeidentity.Create(model.RuntimeIdentity{
+		Kind: "installed", PackageName: artifact.PackageName, PackageVersion: artifact.PackageVersion, BinName: binName,
+		ExecutablePath: executablePath, ExecutableRealPath: executableRealPath, OptionalDependencies: optionalDependencies,
+	})
 	if err != nil {
 		return nil, []model.IncompleteEvidence{{Code: "THS-INCOMPLETE-001", Profile: profileName, Stage: "resolve-bin", Message: err.Error()}}
 	}
-	runtimeIdentity := model.RuntimeIdentity{Kind: "installed", PackageName: artifact.PackageName, PackageVersion: artifact.PackageVersion, BinName: binName, ExecutablePath: executablePath, ExecutableRealPath: executableRealPath, OptionalDependencies: optionalDependencies, Canonical: canonicalValue, SHA256: canonical.SHA256String(canonicalValue)}
 	probes := runProbes(executable, nil, projectDir, config, profileName, &incomplete, []string{projectDir, projectRealPath})
 	return &model.RunReceipt{Subject: "installed", Profile: profileName, InstallArgs: append([]string{}, installArgs...), Environment: environment, Runtime: runtimeIdentity, Probes: probes}, incomplete
 }
