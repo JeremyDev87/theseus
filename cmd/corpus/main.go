@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/JeremyDev87/theseus/internal/model"
+	"github.com/JeremyDev87/theseus/internal/reportdiff"
 	"github.com/JeremyDev87/theseus/internal/version"
 )
 
@@ -45,9 +45,9 @@ func main() {
 				continue
 			}
 		}
-		var report model.VerificationReport
-		if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
-			fmt.Fprintf(os.Stderr, "FAIL %s: invalid JSON: %v; stderr=%s\n", item.Name, err, stderr.String())
+		report, err := reportdiff.Parse(stdout.Bytes())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL %s: invalid verification report: %v; stderr=%s\n", item.Name, err, stderr.String())
 			failures++
 			continue
 		}

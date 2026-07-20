@@ -1,19 +1,133 @@
 {
   "schemaVersion": 2,
   "identityVersion": 1,
-  "tool": { "name": "theseus", "version": "0.1.0" },
-  "target": "fixture-before",
+  "tool": {
+    "name": "theseus",
+    "version": "0.1.0"
+  },
+  "target": "fixture",
+  "artifact": {
+    "packageName": "fixture",
+    "packageVersion": "1.0.0",
+    "filename": "fixture.tgz",
+    "sha256": "70ea06053509b85e86aaa7ae9a844c489068f32741581cb6b773af42e272d088",
+    "size": 1
+  },
   "status": "incomplete",
   "exitCode": 2,
-  "artifact": { "packageName": "fixture", "packageVersion": "1.0.0", "filename": "fixture.tgz", "sha256": "before-sha", "size": 1 },
-  "receipts": [],
+  "receipts": [
+    {
+      "subject": "installed",
+      "profile": "default",
+      "installArgs": [],
+      "environment": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "node": "v20.0.0",
+        "npm": "10.0.0"
+      },
+      "runtime": {
+        "kind": "installed",
+        "packageName": "fixture",
+        "packageVersion": "1.0.0",
+        "binName": "fixture",
+        "executablePath": "node_modules/.bin/fixture",
+        "executableRealPath": "node_modules/fixture/bin.js",
+        "optionalDependencies": [],
+        "canonical": "{\"binName\":\"fixture\",\"executablePath\":\"node_modules/.bin/fixture\",\"executableRealPath\":\"node_modules/fixture/bin.js\",\"kind\":\"installed\",\"optionalDependencies\":[],\"packageName\":\"fixture\",\"packageVersion\":\"1.0.0\"}",
+        "sha256": "ab699f19d7ac7c3fc22de1a21311dc227a983bf93bc170ac1ec0b45e773f3ae9"
+      },
+      "probes": [
+        {
+          "id": "help",
+          "argv": [
+            "--help"
+          ],
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "stdout": "",
+          "stderr": "",
+          "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 0
+        },
+        {
+          "id": "version",
+          "argv": [
+            "--version"
+          ],
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "stdout": "",
+          "stderr": "",
+          "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 0
+        }
+      ]
+    },
+    {
+      "subject": "installed",
+      "profile": "noOptional",
+      "installArgs": [],
+      "environment": {
+        "platform": "darwin",
+        "arch": "arm64",
+        "node": "v20.0.0",
+        "npm": "10.0.0"
+      },
+      "runtime": {
+        "kind": "installed",
+        "packageName": "fixture",
+        "packageVersion": "1.0.0",
+        "binName": "fixture",
+        "executablePath": "node_modules/.bin/fixture",
+        "executableRealPath": "node_modules/fixture/bin.js",
+        "optionalDependencies": [],
+        "canonical": "{\"binName\":\"fixture\",\"executablePath\":\"node_modules/.bin/fixture\",\"executableRealPath\":\"node_modules/fixture/bin.js\",\"kind\":\"installed\",\"optionalDependencies\":[],\"packageName\":\"fixture\",\"packageVersion\":\"1.0.0\"}",
+        "sha256": "ab699f19d7ac7c3fc22de1a21311dc227a983bf93bc170ac1ec0b45e773f3ae9"
+      },
+      "probes": [
+        {
+          "id": "help",
+          "argv": [
+            "--help"
+          ],
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "stdout": "",
+          "stderr": "",
+          "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 0
+        },
+        {
+          "id": "version",
+          "argv": [
+            "--version"
+          ],
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "stdout": "",
+          "stderr": "",
+          "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "durationMs": 0
+        }
+      ]
+    }
+  ],
   "incomplete": [
     {
-      "id": "ths:v1:1b8a73d73398eb33d6a9380dd34032e095c7949fe49020e6084378512b562506",
+      "id": "ths:v1:e1e52f6c19c43aa7fc5e015db7d5640199fdfebb4dab4be076f18c283bf6bb87",
       "code": "THS-INCOMPLETE-001",
-      "profile": "default",
+      "profile": "failed",
       "stage": "install",
-      "message": "old install failure"
+      "message": "fixture install failed"
     }
   ],
   "comparison": {
@@ -23,9 +137,16 @@
         "code": "THS-PARITY-001",
         "probe": "help",
         "field": "exit",
-        "profiles": ["default", "noOptional"],
+        "profiles": [
+          "default",
+          "noOptional"
+        ],
         "locator": "compare:exit",
-        "message": "before wording"
+        "message": "help exit differs",
+        "actual": {
+          "default": 0,
+          "noOptional": 1
+        }
       }
     ],
     "allowedDifferences": []
