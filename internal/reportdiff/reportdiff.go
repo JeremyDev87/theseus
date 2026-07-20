@@ -278,7 +278,7 @@ func validateReceipt(receipt model.RunReceipt, index int, artifact model.Artifac
 			return fmt.Errorf("%s source runtime identity is inconsistent", prefix)
 		}
 	} else {
-		if profile == "source" || strings.TrimSpace(runtime.PackageName) == "" || strings.TrimSpace(runtime.PackageVersion) == "" {
+		if strings.TrimSpace(runtime.PackageName) == "" || strings.TrimSpace(runtime.PackageVersion) == "" {
 			return fmt.Errorf("%s installed runtime package identity is incomplete", prefix)
 		}
 		if runtime.PackageName != artifact.PackageName || runtime.PackageVersion != artifact.PackageVersion {
@@ -320,9 +320,6 @@ func validateReceipt(receipt model.RunReceipt, index int, artifact model.Artifac
 		if strings.TrimSpace(probe.ID) == "" || probe.Argv == nil || strings.TrimSpace(probe.StdoutSHA256) == "" || strings.TrimSpace(probe.StderrSHA256) == "" || probe.DurationMS < 0 {
 			return fmt.Errorf("%s probes[%d] is incomplete", prefix, probeIndex)
 		}
-		if probe.ID != strings.TrimSpace(probe.ID) {
-			return fmt.Errorf("%s probes[%d] id must be canonical", prefix, probeIndex)
-		}
 		if seenProbes[probe.ID] {
 			return fmt.Errorf("%s contains duplicate probe id %s", prefix, probe.ID)
 		}
@@ -348,9 +345,6 @@ func validateReceipt(receipt model.RunReceipt, index int, artifact model.Artifac
 }
 
 func validateFinding(finding model.Finding, index int, receipts map[string]model.RunReceipt) error {
-	if finding.Probe != strings.TrimSpace(finding.Probe) {
-		return fmt.Errorf("finding[%d] probe must be canonical", index)
-	}
 	if !validFindingField(finding.Field) || len(finding.Profiles) > 2 {
 		return fmt.Errorf("finding[%d] has unsupported field or profile count", index)
 	}
@@ -395,11 +389,11 @@ func validateFinding(finding model.Finding, index int, receipts map[string]model
 }
 
 func validateAllowedDifference(allowed model.AllowedDifference, index int, receipts map[string]model.RunReceipt) (string, error) {
-	if allowed.Probe != strings.TrimSpace(allowed.Probe) || !validCompareField(allowed.Field) {
+	if !validCompareField(allowed.Field) {
 		return "", fmt.Errorf("allowedDifferences[%d] has invalid probe or field", index)
 	}
-	if allowed.Reason != strings.TrimSpace(allowed.Reason) || allowed.Reason == "" {
-		return "", fmt.Errorf("allowedDifferences[%d] reason must be canonical and non-empty", index)
+	if strings.TrimSpace(allowed.Reason) == "" {
+		return "", fmt.Errorf("allowedDifferences[%d] reason must be non-empty", index)
 	}
 	leftProfile, rightProfile := allowed.Profiles[0], allowed.Profiles[1]
 	if leftProfile == rightProfile {

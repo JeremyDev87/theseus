@@ -282,6 +282,42 @@ func TestParseAcceptsReceiptBoundFindingAndAllowedDifference(t *testing.T) {
 	}
 }
 
+func TestParseAcceptsProducerPermittedReceiptText(t *testing.T) {
+	tests := []struct {
+		name   string
+		report model.VerificationReport
+	}{
+		{name: "installed profile named source", report: func() model.VerificationReport {
+			report := verificationReport(nil, nil)
+			report.Receipts[0].Profile = "source"
+			return report
+		}()},
+		{name: "probe id with surrounding whitespace", report: func() model.VerificationReport {
+			report := verificationReport(nil, nil)
+			for index := range report.Receipts {
+				report.Receipts[index].Probes[0].ID = " help "
+			}
+			return report
+		}()},
+		{name: "allowed difference reason with surrounding whitespace", report: func() model.VerificationReport {
+			report := allowedDifferenceReport()
+			report.Comparison.AllowedDifferences[0].Reason = " fixture contract "
+			return report
+		}()},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			data, err := json.Marshal(test.report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Parse(data); err != nil {
+				t.Fatalf("producer-permitted report text was rejected: %v", err)
+			}
+		})
+	}
+}
+
 func allowedDifferenceReport() model.VerificationReport {
 	report := verificationReport(nil, nil)
 	probe := &report.Receipts[1].Probes[0]
