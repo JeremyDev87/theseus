@@ -82,6 +82,8 @@ func TestParseRejectsSchemaV1UnknownFieldsDuplicateAndMismatchedIDs(t *testing.T
 		{name: "malformed", data: []byte(`{"schemaVersion":`), want: "invalid report JSON"},
 		{name: "schema v1", data: []byte(strings.Replace(string(validJSON), `"schemaVersion":2`, `"schemaVersion":1`, 1)), want: "schemaVersion 2"},
 		{name: "unknown root", data: []byte(strings.Replace(string(validJSON), `{"schemaVersion"`, `{"unexpected":true,"schemaVersion"`, 1)), want: "unknown field"},
+		{name: "duplicate root key", data: []byte(strings.Replace(string(validJSON), `"schemaVersion":2`, `"schemaVersion":1,"schemaVersion":2`, 1)), want: "duplicate JSON object key"},
+		{name: "duplicate nested key", data: []byte(strings.Replace(string(validJSON), `"name":"theseus"`, `"name":"other","name":"theseus"`, 1)), want: "duplicate JSON object key"},
 		{name: "mismatched id", data: []byte(strings.Replace(string(validJSON), `ths:v1:`, `ths:v1:0`, 1)), want: "identity mismatch"},
 	}
 
@@ -122,10 +124,50 @@ func TestParseRejectsSchemaV1UnknownFieldsDuplicateAndMismatchedIDs(t *testing.T
 		want string
 	}{name: "partial receipt", data: partialReceiptJSON, want: "subject and profile must not be empty"})
 
+	timedOutPass := verificationReport(nil, nil)
+	timedOutPass.Receipts[0].Probes = []model.ProbeReceipt{{
+		ID: "help", Argv: []string{"--help"}, TimedOut: true,
+		StdoutSHA256: "stdout-sha", StderrSHA256: "stderr-sha",
+	}}
+	timedOutPassJSON, _ := json.Marshal(timedOutPass)
+	cases = append(cases, struct {
+		name string
+		data []byte
+		want string
+	}{name: "timed out pass receipt", data: timedOutPassJSON, want: "timed out probe requires matching incomplete evidence"})
+
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			if _, err := Parse(test.data); err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error=%v want substring %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestParseAcceptsProbeFailureWithMatchingIncompleteEvidence(t *testing.T) {
+	tests := []struct {
+		name     string
+		timedOut bool
+		signal   *string
+	}{
+		{name: "spawn failure without process outcome"},
+		{name: "timed out process", timedOut: true, signal: stringPointer("SIGKILL")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			evidence := incomplete("default", "probe", "help", test.name)
+			report := verificationReport(nil, []model.IncompleteEvidence{evidence})
+			report.Receipts[0].Probes = []model.ProbeReceipt{{
+				ID: "help", Argv: []string{"--help"}, Signal: test.signal, TimedOut: test.timedOut,
+				StdoutSHA256: "stdout-sha", StderrSHA256: "stderr-sha",
+			}}
+			data, err := json.Marshal(report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Parse(data); err != nil {
+				t.Fatalf("matching incomplete evidence was rejected: %v", err)
 			}
 		})
 	}
@@ -236,6 +278,8 @@ func itemIDs(items []Item) []string {
 	}
 	return ids
 }
+
+func stringPointer(value string) *string { return &value }
 
 func nonNilFindings(values []model.Finding) []model.Finding {
 	if values == nil {

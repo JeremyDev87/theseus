@@ -49,6 +49,9 @@ type Result struct {
 }
 
 func Parse(data []byte) (model.VerificationReport, error) {
+	if err := rejectDuplicateJSONKeys(data); err != nil {
+		return model.VerificationReport{}, fmt.Errorf("invalid report JSON: %w", err)
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	decoder.UseNumber()
@@ -164,7 +167,7 @@ func validate(report model.VerificationReport) error {
 	for index := range report.Receipts {
 		receipt := report.Receipts[index]
 		profile := strings.TrimSpace(receipt.Profile)
-		if err := validateReceipt(receipt, index); err != nil {
+		if err := validateReceipt(receipt, index, report.Incomplete); err != nil {
 			return err
 		}
 		if seenProfiles[profile] {
@@ -212,9 +215,10 @@ func validate(report model.VerificationReport) error {
 	return nil
 }
 
-func validateReceipt(receipt model.RunReceipt, index int) error {
+func validateReceipt(receipt model.RunReceipt, index int, incomplete []model.IncompleteEvidence) error {
 	prefix := fmt.Sprintf("receipt[%d]", index)
-	if strings.TrimSpace(receipt.Subject) == "" || strings.TrimSpace(receipt.Profile) == "" {
+	profile := strings.TrimSpace(receipt.Profile)
+	if strings.TrimSpace(receipt.Subject) == "" || profile == "" {
 		return fmt.Errorf("%s subject and profile must not be empty", prefix)
 	}
 	if receipt.InstallArgs == nil || receipt.Probes == nil {
@@ -246,9 +250,78 @@ func validateReceipt(receipt model.RunReceipt, index int) error {
 		if seenProbes[probe.ID] {
 			return fmt.Errorf("%s contains duplicate probe id %s", prefix, probe.ID)
 		}
+		if probe.ExitCode != nil && probe.Signal != nil {
+			return fmt.Errorf("%s probes[%d] cannot contain both exitCode and signal", prefix, probeIndex)
+		}
+		matchedIncomplete := hasProbeIncomplete(incomplete, profile, probe.ID)
+		if probe.TimedOut && !matchedIncomplete {
+			return fmt.Errorf("%s probes[%d] timed out probe requires matching incomplete evidence", prefix, probeIndex)
+		}
+		if probe.ExitCode == nil && probe.Signal == nil && !probe.TimedOut && !matchedIncomplete {
+			return fmt.Errorf("%s probes[%d] probe without a process outcome requires matching incomplete evidence", prefix, probeIndex)
+		}
 		seenProbes[probe.ID] = true
 	}
 	return nil
+}
+
+func hasProbeIncomplete(incomplete []model.IncompleteEvidence, profile, probe string) bool {
+	for _, evidence := range incomplete {
+		if strings.TrimSpace(evidence.Profile) == profile && strings.TrimSpace(evidence.Stage) == "probe" && evidence.Probe == probe {
+			return true
+		}
+	}
+	return false
+}
+
+func rejectDuplicateJSONKeys(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	return scanJSONValue(decoder)
+}
+
+func scanJSONValue(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, ok := token.(json.Delim)
+	if !ok {
+		return nil
+	}
+	switch delimiter {
+	case '{':
+		seen := map[string]bool{}
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return fmt.Errorf("object key must be a string")
+			}
+			if seen[key] {
+				return fmt.Errorf("duplicate JSON object key %q", key)
+			}
+			seen[key] = true
+			if err := scanJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		_, err = decoder.Token()
+		return err
+	case '[':
+		for decoder.More() {
+			if err := scanJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		_, err = decoder.Token()
+		return err
+	default:
+		return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+	}
 }
 
 func validStatusExit(status string, exitCode int) bool {
